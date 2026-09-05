@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #F6F3EC;
+}
+
+input[type="date"] {
+  color-scheme: light;
+}
+.dark-scheme input[type="date"] {
+  color-scheme: dark;
+}
