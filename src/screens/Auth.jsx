@@ -82,6 +82,11 @@ export default function Auth() {
           <div className="mt-4 text-[11px] text-center" style={{ color: t.textFaint }}>
             Your data is private to your account — nobody else can see it.
           </div>
+                 <div style={{ fontSize: 10, color: "#999", marginTop: 20, wordBreak: "break-all", textAlign: "left" }}>
+         DEBUG url: {String(import.meta.env.VITE_SUPABASE_URL)}<br/>
+         DEBUG key starts: {String(import.meta.env.VITE_SUPABASE_ANON_KEY).slice(0, 15)}
+       </div>
+
         </div>
       </div>
     </ThemeCtx.Provider>
