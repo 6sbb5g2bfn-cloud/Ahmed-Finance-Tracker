@@ -61,7 +61,7 @@ export async function fetchAllData(userId) {
   ]);
 
   return {
-    meta: { currency: settings.currency, theme: settings.theme },
+    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled },
     accounts: must(accounts, "Loading accounts").map(mapAccount),
     categories: must(categories, "Loading categories").map(mapCategory),
     transactions: must(transactions, "Loading transactions").map(mapTransaction),
@@ -318,6 +318,11 @@ export async function setCurrency(userId, currency) {
 export async function setTheme(userId, theme) {
   const res = await supabase.from("user_settings").update({ theme, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating theme");
+}
+
+export async function setRemindersEnabled(userId, enabled) {
+  const res = await supabase.from("user_settings").update({ reminders_enabled: enabled, updated_at: new Date().toISOString() }).eq("user_id", userId);
+  must(res, "Updating reminder preference");
 }
 
 /* =========================================================================
