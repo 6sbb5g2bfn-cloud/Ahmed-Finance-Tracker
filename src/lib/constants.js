@@ -35,8 +35,10 @@ export const FREQUENCIES = [
   { id: "daily", label: "Daily" },
   { id: "weekly", label: "Weekly" },
   { id: "monthly", label: "Monthly" },
+  { id: "quarterly", label: "Quarterly" },
   { id: "yearly", label: "Yearly" },
 ];
+
 
 export const ACCOUNT_TYPES = [
   { id: "bank", label: "Bank", icon: Landmark },
