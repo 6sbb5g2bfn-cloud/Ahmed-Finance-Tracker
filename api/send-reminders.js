@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+mport { createClient } from "@supabase/supabase-js";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -55,7 +55,12 @@ const INSTALLMENT_THRESHOLD_DAYS = 1;
 const DEBT_THRESHOLD_DAYS = 3;
 
 export default async function handler(req, res) {
-  if (req.headers["authorization"] !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Real Vercel Cron invocations send the secret as a header; this also accepts
+  // it as a plain URL query param so it can be triggered manually from any
+  // browser for testing, without needing a tool that can set custom headers.
+  const authHeader = req.headers["authorization"] === `Bearer ${process.env.CRON_SECRET}`;
+  const queryParam = req.query?.secret === process.env.CRON_SECRET;
+  if (!authHeader && !queryParam) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
