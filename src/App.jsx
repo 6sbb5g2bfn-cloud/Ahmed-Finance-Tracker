@@ -360,6 +360,12 @@ function FinanceApp({ userId, userEmail }) {
     try { await db.setTheme(userId, theme); } catch (e) { errorToast(e); }
   };
 
+   const handleSetRemindersEnabled = async (v) => {
+  setAppState((prev) => ({ ...prev, meta: { ...prev.meta, remindersEnabled: v } }));
+  try { await db.setRemindersEnabled(userId, v); toast(v ? "Email reminders on" : "Email reminders off"); } catch (e) { errorToast(e); }
+};
+
+
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -443,7 +449,8 @@ function FinanceApp({ userId, userEmail }) {
             onAddCategory={handleAddCategory} onRenameCategory={handleRenameCategory} onDeleteCategory={handleDeleteCategory}
             onExport={handleExport} onImport={handleImport}
             onResetDemo={handleResetDemo} onClearAll={handleClearAll}
-            onManageAccounts={() => setActiveTab("accounts")} userEmail={userEmail} onSignOut={handleSignOut} />}
+            onManageAccounts={() => setActiveTab("accounts")} userEmail={userEmail} onSignOut={handleSignOut}
+remindersEnabled={!!appState.meta.remindersEnabled} setRemindersEnabled={handleSetRemindersEnabled} />}
 
           <BottomNav active={activeTab} onNav={setActiveTab} onAdd={openAddTx} onMore={() => setMoreOpen(true)} />
           <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNav={setActiveTab} />
