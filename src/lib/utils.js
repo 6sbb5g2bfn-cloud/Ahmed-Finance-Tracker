@@ -61,12 +61,14 @@ export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
     }
     const nd = new Date(cursor);
     switch (item.frequency) {
-      case "daily": nd.setDate(nd.getDate() + 1); break;
-      case "weekly": nd.setDate(nd.getDate() + 7); break;
-      case "yearly": nd.setFullYear(nd.getFullYear() + 1); break;
-      case "monthly":
-      default: nd.setMonth(nd.getMonth() + 1); break;
-    }
+  case "daily": nd.setDate(nd.getDate() + 1); break;
+  case "weekly": nd.setDate(nd.getDate() + 7); break;
+  case "quarterly": nd.setMonth(nd.getMonth() + 3); break;
+  case "yearly": nd.setFullYear(nd.getFullYear() + 1); break;
+  case "monthly":
+  default: nd.setMonth(nd.getMonth() + 1); break;
+}
+
     cursor = nd;
     guard++;
     if (end && cursor > end) break;
