@@ -1,4 +1,4 @@
-const { createClient } = require("@supabase/supabase-js");
+import { createClient } from "@supabase/supabase-js";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -54,19 +54,13 @@ const RECURRING_THRESHOLD_DAYS = { daily: 1, weekly: 1, monthly: 1, quarterly: 3
 const INSTALLMENT_THRESHOLD_DAYS = 1;
 const DEBT_THRESHOLD_DAYS = 3;
 
-module.exports = async function handler(req, res) {
-  // Real Vercel Cron invocations send the secret as a header; this also accepts
-  // it as a plain URL query param so it can be triggered manually from any
-  // browser for testing, without needing a tool that can set custom headers.
+export default async function handler(req, res) {
   const authHeader = req.headers["authorization"] === `Bearer ${process.env.CRON_SECRET}`;
   const queryParam = req.query && req.query.secret === process.env.CRON_SECRET;
   if (!authHeader && !queryParam) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  // Everything below is wrapped so ANY failure - a missing env var, a bad key,
-  // an unexpected Supabase response shape - comes back as readable JSON in the
-  // browser instead of Vercel's generic "this function has crashed" page.
   try {
     if (!process.env.VITE_SUPABASE_URL) throw new Error("VITE_SUPABASE_URL is not set for this environment");
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set for this environment");
@@ -83,7 +77,8 @@ module.exports = async function handler(req, res) {
     ]);
     const checks = [["user_settings", settingsRes], ["recurring_payments", recurringRes], ["installments", installmentsRes], ["debts", debtsRes]];
     for (let i = 0; i < checks.length; i++) {
-      const name = checks[i][0], r = checks[i][1];
+      const name = checks[i][0];
+      const r = checks[i][1];
       if (r.error) throw new Error("Reading " + name + " failed: " + r.error.message);
     }
 
@@ -191,4 +186,4 @@ module.exports = async function handler(req, res) {
     console.error("send-reminders failed:", e);
     return res.status(500).json({ error: e.message || String(e) });
   }
-};
+}
