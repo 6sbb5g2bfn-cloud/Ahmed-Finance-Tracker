@@ -464,7 +464,8 @@ remindersEnabled={!!appState.meta.remindersEnabled} setRemindersEnabled={handleS
           </Sheet>
 
           <Sheet open={!!assetSheet} onClose={() => setAssetSheet(null)} title={assetSheet?.mode === "edit" ? "Edit asset" : "Add asset"}>
-            {assetSheet && <AssetForm initial={assetSheet.data} onSave={handleSaveAsset} onCancel={() => setAssetSheet(null)}
+            {assetSheet && <AssetForm state={appState} initial={assetSheet.data} onSave={handleSaveAsset} onCancel={() => setAssetSheet(null)}
+
               onDelete={assetSheet.mode === "edit" ? () => handleDeleteAsset(assetSheet.data.id) : null} />}
           </Sheet>
 
