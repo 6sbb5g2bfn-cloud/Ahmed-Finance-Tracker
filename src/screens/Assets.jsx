@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Gem, TrendingUp, TrendingDown, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Gem, TrendingUp, TrendingDown, Trash2, RotateCcw } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { useTheme } from "../context/ThemeContext";
 import { FONT_DISPLAY, ASSET_TYPES } from "../lib/constants";
@@ -7,7 +7,14 @@ import { todayISO, fmtNum, uid } from "../lib/utils";
 import { totalAssetsValue, totalAssetsCost, totalAssetsGain, assetsByType, chartPalette } from "../lib/calculations";
 import { Screen, Card, Amount, EmptyState, IconBadge, FieldLabel, TextInput, SelectPills, PrimaryButton } from "../components/ui";
 
-export function AssetForm({ initial, onSave, onCancel, onDelete }) {
+const KARATS = [
+  { id: "24k", label: "24k" },
+  { id: "22k", label: "22k" },
+  { id: "21k", label: "21k" },
+  { id: "18k", label: "18k" },
+];
+
+export function AssetForm({ state, initial, onSave, onCancel, onDelete }) {
   const t = useTheme();
   const [name, setName] = useState(initial?.name || "");
   const [type, setType] = useState(initial?.type || "gold");
@@ -15,7 +22,47 @@ export function AssetForm({ initial, onSave, onCancel, onDelete }) {
   const [costBasis, setCostBasis] = useState(initial ? String(initial.costBasis) : "");
   const [purchaseDate, setPurchaseDate] = useState(initial?.purchaseDate || todayISO());
   const [notes, setNotes] = useState(initial?.notes || "");
+  const [weightGrams, setWeightGrams] = useState(initial?.weightGrams != null ? String(initial.weightGrams) : "");
+  const [karat, setKarat] = useState(initial?.karat || "21k");
+  const [livePrices, setLivePrices] = useState(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState(null);
   const canSave = name.trim().length > 0 && parseFloat(currentValue) > 0;
+
+  const isGold = type === "gold";
+  const currency = (state && state.meta && state.meta.currency) || "USD";
+
+  const fetchLivePrice = async () => {
+    setPriceLoading(true);
+    setPriceError(null);
+    try {
+      const resp = await fetch(`/api/gold-price?currency=${encodeURIComponent(currency)}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Couldn't load live price");
+      setLivePrices(data);
+    } catch (e) {
+      setPriceError(e.message || "Couldn't load live price");
+    } finally {
+      setPriceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isGold) fetchLivePrice();
+    // eslint-disable-next-line
+  }, [isGold]);
+
+  const pricePerGram = livePrices ? Number(livePrices[`price_gram_${karat}`]) : null;
+  const grams = parseFloat(weightGrams) || 0;
+  const liveComputedValue = pricePerGram && grams > 0 ? Math.round(pricePerGram * grams * 100) / 100 : null;
+  const usingLiveValue = isGold && liveComputedValue != null;
+
+  // Sync the auto-calculated value into currentValue whenever it changes, so
+  // saving always uses the freshest figure without a separate "apply" step.
+  useEffect(() => {
+    if (usingLiveValue) setCurrentValue(String(liveComputedValue));
+    // eslint-disable-next-line
+  }, [liveComputedValue]);
 
   const cv = parseFloat(currentValue) || 0;
   const cb = parseFloat(costBasis) || 0;
@@ -29,15 +76,61 @@ export function AssetForm({ initial, onSave, onCancel, onDelete }) {
       <div className="mt-5"><FieldLabel>Type</FieldLabel>
         <SelectPills value={type} onChange={setType} options={ASSET_TYPES} getLabel={(o) => o.label} />
       </div>
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <div>
+
+      {isGold ? (
+        <>
+          <div className="mt-5">
+            <FieldLabel>Weight (grams)</FieldLabel>
+            <TextInput type="number" inputMode="decimal" step="0.01" value={weightGrams} onChange={setWeightGrams} placeholder="0.00" />
+          </div>
+          <div className="mt-5">
+            <FieldLabel>Karat</FieldLabel>
+            <SelectPills value={karat} onChange={setKarat} options={KARATS} getLabel={(o) => o.label} />
+          </div>
+
+          {priceLoading && (
+            <div className="mt-4 text-[12.5px]" style={{ color: t.textSoft }}>Loading live gold price&hellip;</div>
+          )}
+
+          {!priceLoading && livePrices && (
+            <div className="mt-4 rounded-2xl p-4" style={{ background: t.ink }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>Live price ({karat})</span>
+                <button onClick={fetchLivePrice} className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>
+                  <RotateCcw size={11} /> refresh
+                </button>
+              </div>
+              <div className="text-[13px] mt-0.5" style={{ color: t.bg }}>
+                {pricePerGram ? `${fmtNum(pricePerGram)} ${currency} / gram` : "Not available for this karat"}
+              </div>
+              {liveComputedValue != null && (
+                <>
+                  <div className="h-px my-2.5" style={{ background: "rgba(246,243,236,0.15)" }} />
+                  <div className="text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>Current value (auto-calculated)</div>
+                  <div style={{ fontFamily: FONT_DISPLAY, fontSize: 22, color: t.bg, marginTop: 2 }}>{fmtNum(liveComputedValue)} {currency}</div>
+                </>
+              )}
+            </div>
+          )}
+
+          {!priceLoading && priceError && (
+            <div className="mt-4">
+              <div className="text-[12px] mb-2" style={{ color: t.red }}>Couldn't load a live price ({priceError}). Enter the value yourself for now.</div>
+              <FieldLabel>Current value</FieldLabel>
+              <TextInput type="number" inputMode="decimal" step="0.01" value={currentValue} onChange={setCurrentValue} placeholder="0.00" />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="mt-5">
           <FieldLabel>Current value</FieldLabel>
           <TextInput type="number" inputMode="decimal" step="0.01" value={currentValue} onChange={setCurrentValue} placeholder="0.00" />
         </div>
-        <div>
-          <FieldLabel>What you paid</FieldLabel>
-          <TextInput type="number" inputMode="decimal" step="0.01" value={costBasis} onChange={setCostBasis} placeholder="0.00" />
-        </div>
+      )}
+
+      <div className="mt-5">
+        <FieldLabel>What you paid</FieldLabel>
+        <TextInput type="number" inputMode="decimal" step="0.01" value={costBasis} onChange={setCostBasis} placeholder="0.00" />
       </div>
       {(cv > 0 || cb > 0) && (
         <div className="mt-3 flex items-center gap-1.5 text-[12.5px]" style={{ color: gain >= 0 ? t.green : t.red }}>
@@ -57,7 +150,10 @@ export function AssetForm({ initial, onSave, onCancel, onDelete }) {
         {initial && onDelete && <button onClick={onDelete} className="p-3 rounded-full active:opacity-60" style={{ border: `1px solid ${t.line}` }}><Trash2 size={18} color={t.red} /></button>}
         <PrimaryButton full disabled={!canSave} onClick={() => onSave({
           id: initial?.id || uid(), name: name.trim(), type, currentValue: cv, costBasis: cb,
-          purchaseDate: purchaseDate || null, notes: notes.trim(), createdAt: initial?.createdAt || todayISO(),
+          purchaseDate: purchaseDate || null,
+          weightGrams: isGold && grams > 0 ? grams : null,
+          karat: isGold ? karat : null,
+          notes: notes.trim(), createdAt: initial?.createdAt || todayISO(),
         })}>{initial ? "Save changes" : "Add asset"}</PrimaryButton>
       </div>
     </div>
