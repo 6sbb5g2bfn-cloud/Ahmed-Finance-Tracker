@@ -16,7 +16,8 @@ const mapInstallment = (r) => ({ id: r.id, name: r.name, totalAmount: Number(r.t
 const mapDebt = (r) => ({ id: r.id, direction: r.direction, person: r.person, amount: Number(r.amount), date: r.date, dueDate: r.due_date, notes: r.notes || "", status: r.status, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
 const mapBudget = (r) => ({ id: r.id, categoryId: r.category_id, amount: Number(r.amount) });
 const mapGoal = (r) => ({ id: r.id, name: r.name, target: Number(r.target), targetDate: r.target_date, accountId: r.account_id, contributions: (r.contributions || []).map((c) => ({ ...c, amount: Number(c.amount) })) });
-const mapAsset = (r) => ({ id: r.id, name: r.name, type: r.type, currentValue: Number(r.current_value), costBasis: Number(r.cost_basis), purchaseDate: r.purchase_date, notes: r.notes || "", createdAt: r.created_at?.slice(0, 10) });
+const mapAsset = (r) => ({ id: r.id, name: r.name, type: r.type, currentValue: Number(r.current_value), costBasis: Number(r.cost_basis), purchaseDate: r.purchase_date, weightGrams: r.weight_grams != null ? Number(r.weight_grams) : null, karat: r.karat || null, notes: r.notes || "", createdAt: r.created_at?.slice(0, 10) });
+
 
 function must(res, action) {
   if (res.error) throw new Error(`${action} failed: ${res.error.message}`);
@@ -292,17 +293,18 @@ export async function contributeToGoal(userId, goal, amount, date, sourceAccount
 export async function createAsset(userId, a) {
   const res = await supabase.from("assets").insert({
     user_id: userId, name: a.name, type: a.type, current_value: a.currentValue, cost_basis: a.costBasis,
-    purchase_date: a.purchaseDate, notes: a.notes || "",
+    purchase_date: a.purchaseDate, weight_grams: a.weightGrams ?? null, karat: a.karat ?? null, notes: a.notes || "",
   }).select().single();
   return mapAsset(must(res, "Creating asset"));
 }
 export async function updateAsset(userId, a) {
   const res = await supabase.from("assets").update({
     name: a.name, type: a.type, current_value: a.currentValue, cost_basis: a.costBasis,
-    purchase_date: a.purchaseDate, notes: a.notes || "",
+    purchase_date: a.purchaseDate, weight_grams: a.weightGrams ?? null, karat: a.karat ?? null, notes: a.notes || "",
   }).eq("id", a.id).eq("user_id", userId).select().single();
   return mapAsset(must(res, "Updating asset"));
 }
+
 export async function deleteAsset(userId, id) {
   const res = await supabase.from("assets").delete().eq("id", id).eq("user_id", userId);
   must(res, "Deleting asset");
