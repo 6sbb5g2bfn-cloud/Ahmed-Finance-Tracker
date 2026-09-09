@@ -62,7 +62,8 @@ export async function fetchAllData(userId) {
   ]);
 
   return {
-    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled, faceIdEnabled: !!settings.face_id_enabled, faceIdCredentialId: settings.face_id_credential_id || null },
+    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled, pushEnabled: !!settings.push_enabled, faceIdEnabled: !!settings.face_id_enabled, faceIdCredentialId: settings.face_id_credential_id || null },
+
 
     accounts: must(accounts, "Loading accounts").map(mapAccount),
     categories: must(categories, "Loading categories").map(mapCategory),
@@ -331,6 +332,11 @@ export async function setFaceIdEnabled(userId, enabled, credentialId) {
   const res = await supabase.from("user_settings").update({ face_id_enabled: enabled, face_id_credential_id: credentialId, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating Face ID preference");
 }
+export async function setPushEnabled(userId, enabled) {
+  const res = await supabase.from("user_settings").update({ push_enabled: enabled, updated_at: new Date().toISOString() }).eq("user_id", userId);
+  must(res, "Updating push notification preference");
+}
+
 
 
 /* =========================================================================
