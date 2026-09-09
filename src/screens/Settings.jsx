@@ -1,8 +1,9 @@
 import { useState, useRef, useMemo } from "react";
-import { ChevronRight, Wallet, Tag, FileDown, FileUp, RotateCcw, Trash2, Check, Pencil, Plus, LogOut, Mail } from "lucide-react";
+import { ChevronRight, Wallet, Tag, FileDown, FileUp, RotateCcw, Trash2, Check, Pencil, Plus, LogOut, Mail, ScanFace } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { FONT_DISPLAY, CURRENCIES } from "../lib/constants";
 import { Screen, SectionTitle, Card, Row, Sheet, ConfirmDialog, SelectPills, TextInput, IconBadge, CategoryIcon } from "../components/ui";
+import { faceIdSupported } from "../lib/webauthn";
 
 function CategoryRow({ cat, count, onRename, onDelete }) {
   const t = useTheme();
@@ -76,9 +77,9 @@ export function CategoriesManager({ state, onAddCategory, onRenameCategory, onDe
 export default function SettingsScreen({
   state, darkMode, setDarkMode, onSetCurrency, onAddCategory, onRenameCategory, onDeleteCategory,
   onExport, onImport, onResetDemo, onClearAll, onManageAccounts, userEmail, onSignOut,
-remindersEnabled, setRemindersEnabled,
+  remindersEnabled, setRemindersEnabled,
+  faceIdEnabled, setFaceIdEnabled,
 }) {
-
   const t = useTheme();
   const [catOpen, setCatOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
@@ -97,27 +98,43 @@ remindersEnabled, setRemindersEnabled,
           right={<div className="flex items-center gap-1" style={{ color: t.textSoft }}><span className="text-[13px]">{state.meta.currency}</span><ChevronRight size={15} /></div>} />
         <Row noBorder left={<span className="text-[14px]">Dark mode</span>}
           right={
-                    <button onClick={() => setDarkMode(!darkMode)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: darkMode ? t.green : t.line }}>
-          <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: darkMode ? 22 : 2 }} />
-        </button>
-      } />
-  </Card></div>
+            <button onClick={() => setDarkMode(!darkMode)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: darkMode ? t.green : t.line }}>
+              <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: darkMode ? 22 : 2 }} />
+            </button>
+          } />
+      </Card></div>
 
-  <SectionTitle>Notifications</SectionTitle>
-  <div className="px-4"><Card>
-    <Row noBorder left={<div className="flex items-center gap-2.5"><Mail size={16} color={t.textSoft} /><span className="text-[14px]">Email reminders</span></div>}
-      right={
-        <button onClick={() => setRemindersEnabled(!remindersEnabled)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: remindersEnabled ? t.green : t.line }}>
-          <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: remindersEnabled ? 22 : 2 }} />
-        </button>
-      } />
-  </Card></div>
-  <div className="px-4 mt-2 text-[11px]" style={{ color: t.textFaint }}>
-    A daily email before anything's due — 1 day ahead for monthly bills and installments, 3 days for quarterly and debts, a week for yearly.
-  </div>
+      <SectionTitle>Notifications</SectionTitle>
+      <div className="px-4"><Card>
+        <Row noBorder left={<div className="flex items-center gap-2.5"><Mail size={16} color={t.textSoft} /><span className="text-[14px]">Email reminders</span></div>}
+          right={
+            <button onClick={() => setRemindersEnabled(!remindersEnabled)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: remindersEnabled ? t.green : t.line }}>
+              <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: remindersEnabled ? 22 : 2 }} />
+            </button>
+          } />
+      </Card></div>
+      <div className="px-4 mt-2 text-[11px]" style={{ color: t.textFaint }}>
+        A daily email before anything's due — 1 day ahead for monthly bills and installments, 3 days for quarterly and debts, a week for yearly.
+      </div>
 
-  <SectionTitle>Manage</SectionTitle>
+      {faceIdSupported() && (
+        <>
+          <SectionTitle>Security</SectionTitle>
+          <div className="px-4"><Card>
+            <Row noBorder left={<div className="flex items-center gap-2.5"><ScanFace size={16} color={t.textSoft} /><span className="text-[14px]">Face ID lock</span></div>}
+              right={
+                <button onClick={() => setFaceIdEnabled(!faceIdEnabled)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: faceIdEnabled ? t.green : t.line }}>
+                  <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: faceIdEnabled ? 22 : 2 }} />
+                </button>
+              } />
+          </Card></div>
+          <div className="px-4 mt-2 text-[11px]" style={{ color: t.textFaint }}>
+            Require Face ID to open the app. This is a local device lock — your account stays signed in and protected separately.
+          </div>
+        </>
+      )}
 
+      <SectionTitle>Manage</SectionTitle>
       <div className="px-4"><Card>
         <Row onClick={onManageAccounts} left={<div className="flex items-center gap-2.5"><Wallet size={16} color={t.textSoft} /><span className="text-[14px]">Accounts</span></div>} right={<ChevronRight size={15} color={t.textSoft} />} />
         <Row noBorder onClick={() => setCatOpen(true)} left={<div className="flex items-center gap-2.5"><Tag size={16} color={t.textSoft} /><span className="text-[14px]">Categories</span></div>} right={<ChevronRight size={15} color={t.textSoft} />} />
