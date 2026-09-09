@@ -62,7 +62,8 @@ export async function fetchAllData(userId) {
   ]);
 
   return {
-    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled },
+    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled, faceIdEnabled: !!settings.face_id_enabled, faceIdCredentialId: settings.face_id_credential_id || null },
+
     accounts: must(accounts, "Loading accounts").map(mapAccount),
     categories: must(categories, "Loading categories").map(mapCategory),
     transactions: must(transactions, "Loading transactions").map(mapTransaction),
@@ -326,6 +327,11 @@ export async function setRemindersEnabled(userId, enabled) {
   const res = await supabase.from("user_settings").update({ reminders_enabled: enabled, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating reminder preference");
 }
+export async function setFaceIdEnabled(userId, enabled, credentialId) {
+  const res = await supabase.from("user_settings").update({ face_id_enabled: enabled, face_id_credential_id: credentialId, updated_at: new Date().toISOString() }).eq("user_id", userId);
+  must(res, "Updating Face ID preference");
+}
+
 
 /* =========================================================================
    BULK OPERATIONS — clear all, load sample data, import a JSON export.
