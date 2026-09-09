@@ -1,9 +1,10 @@
 import { useState, useRef, useMemo } from "react";
-import { ChevronRight, Wallet, Tag, FileDown, FileUp, RotateCcw, Trash2, Check, Pencil, Plus, LogOut, Mail, ScanFace } from "lucide-react";
+import { ChevronRight, Wallet, Tag, FileDown, FileUp, RotateCcw, Trash2, Check, Pencil, Plus, LogOut, Mail, ScanFace, Bell } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { FONT_DISPLAY, CURRENCIES } from "../lib/constants";
 import { Screen, SectionTitle, Card, Row, Sheet, ConfirmDialog, SelectPills, TextInput, IconBadge, CategoryIcon } from "../components/ui";
 import { faceIdSupported } from "../lib/webauthn";
+import { pushSupported } from "../lib/push";
 
 function CategoryRow({ cat, count, onRename, onDelete }) {
   const t = useTheme();
@@ -78,6 +79,7 @@ export default function SettingsScreen({
   state, darkMode, setDarkMode, onSetCurrency, onAddCategory, onRenameCategory, onDeleteCategory,
   onExport, onImport, onResetDemo, onClearAll, onManageAccounts, userEmail, onSignOut,
   remindersEnabled, setRemindersEnabled,
+  pushEnabled, setPushEnabled,
   faceIdEnabled, setFaceIdEnabled,
 }) {
   const t = useTheme();
@@ -106,15 +108,24 @@ export default function SettingsScreen({
 
       <SectionTitle>Notifications</SectionTitle>
       <div className="px-4"><Card>
-        <Row noBorder left={<div className="flex items-center gap-2.5"><Mail size={16} color={t.textSoft} /><span className="text-[14px]">Email reminders</span></div>}
+        <Row left={<div className="flex items-center gap-2.5"><Mail size={16} color={t.textSoft} /><span className="text-[14px]">Email reminders</span></div>}
           right={
             <button onClick={() => setRemindersEnabled(!remindersEnabled)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: remindersEnabled ? t.green : t.line }}>
               <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: remindersEnabled ? 22 : 2 }} />
             </button>
           } />
+        {pushSupported() && (
+          <Row noBorder left={<div className="flex items-center gap-2.5"><Bell size={16} color={t.textSoft} /><span className="text-[14px]">Push notifications</span></div>}
+            right={
+              <button onClick={() => setPushEnabled(!pushEnabled)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: pushEnabled ? t.green : t.line }}>
+                <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: pushEnabled ? 22 : 2 }} />
+              </button>
+            } />
+        )}
       </Card></div>
       <div className="px-4 mt-2 text-[11px]" style={{ color: t.textFaint }}>
         A daily email before anything's due — 1 day ahead for monthly bills and installments, 3 days for quarterly and debts, a week for yearly.
+        {pushSupported() && " Push notifications cover the same reminders, plus a nightly spending summary."}
       </div>
 
       {faceIdSupported() && (
