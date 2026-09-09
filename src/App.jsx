@@ -20,6 +20,8 @@ import InstallmentsDebtsScreen, { InstallmentForm, DebtForm, RecordPaymentForm }
 import SavingsGoalsScreen, { SavingsGoalForm } from "./screens/SavingsGoals";
 import ReportsScreen from "./screens/Reports";
 import SettingsScreen from "./screens/Settings";
+import LockScreen from "./components/LockScreen";
+import { registerFaceId } from "./lib/webauthn";
 
 /* =========================================================================
    ROOT — decides Auth vs the signed-in app based on the Supabase session.
@@ -82,6 +84,10 @@ function FinanceApp({ userId, userEmail }) {
   }, []);
   const errorToast = useCallback((e) => toast(e?.message || "Something went wrong — please try again"), [toast]);
 
+  // Face ID lock: null = not yet determined (still shows the loading spinner,
+  // never a flash of real content), true = locked, false = unlocked/not enabled.
+  const [locked, setLocked] = useState(null);
+
   useEffect(() => {
     (async () => {
       try {
@@ -94,6 +100,22 @@ function FinanceApp({ userId, userEmail }) {
       }
     })();
   }, [userId]);
+
+  // Determine the initial lock state exactly once, the moment data is available.
+  useEffect(() => {
+    if (appState && locked === null) setLocked(!!appState.meta.faceIdEnabled);
+  }, [appState, locked]);
+
+  // Re-lock the instant the app is backgrounded (covers both "require Face ID
+  // on return" and "don't show real data in the iOS app-switcher preview").
+  useEffect(() => {
+    if (!appState?.meta?.faceIdEnabled) return;
+    const handler = () => {
+      if (document.visibilityState === "hidden") setLocked(true);
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [appState?.meta?.faceIdEnabled]);
 
   const darkMode = appState?.meta?.theme === "dark";
   const theme = darkMode ? DARK : LIGHT;
@@ -359,12 +381,26 @@ function FinanceApp({ userId, userEmail }) {
     setAppState((prev) => ({ ...prev, meta: { ...prev.meta, theme } })); // instant, no need to wait on this one
     try { await db.setTheme(userId, theme); } catch (e) { errorToast(e); }
   };
-
-   const handleSetRemindersEnabled = async (v) => {
-  setAppState((prev) => ({ ...prev, meta: { ...prev.meta, remindersEnabled: v } }));
-  try { await db.setRemindersEnabled(userId, v); toast(v ? "Email reminders on" : "Email reminders off"); } catch (e) { errorToast(e); }
-};
-
+  const handleSetRemindersEnabled = async (v) => {
+    setAppState((prev) => ({ ...prev, meta: { ...prev.meta, remindersEnabled: v } }));
+    try { await db.setRemindersEnabled(userId, v); toast(v ? "Email reminders on" : "Email reminders off"); } catch (e) { errorToast(e); }
+  };
+  // Must be called directly from a button's onClick (a real user gesture) - see webauthn.js.
+  const handleSetFaceIdEnabled = async (v) => {
+    if (!v) {
+      setAppState((prev) => ({ ...prev, meta: { ...prev.meta, faceIdEnabled: false, faceIdCredentialId: null } }));
+      try { await db.setFaceIdEnabled(userId, false, null); toast("Face ID lock off"); } catch (e) { errorToast(e); }
+      return;
+    }
+    try {
+      const credentialId = await registerFaceId(userId, userEmail);
+      setAppState((prev) => ({ ...prev, meta: { ...prev.meta, faceIdEnabled: true, faceIdCredentialId: credentialId } }));
+      await db.setFaceIdEnabled(userId, true, credentialId);
+      toast("Face ID lock on");
+    } catch (e) {
+      errorToast({ message: "Couldn't set up Face ID — " + (e.message || "try again") });
+    }
+  };
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" });
@@ -426,6 +462,17 @@ function FinanceApp({ userId, userEmail }) {
     );
   }
 
+  if (locked === null) {
+    return (
+      <div className="flex items-center justify-center" style={{ minHeight: "100vh", background: LIGHT.bg }}>
+        <Loader2 size={22} className="animate-spin" color={LIGHT.textSoft} />
+      </div>
+    );
+  }
+  if (locked) {
+    return <LockScreen credentialId={appState.meta.faceIdCredentialId} onUnlock={() => setLocked(false)} />;
+  }
+
   const cur = appState.meta.currency;
 
   return (
@@ -450,7 +497,8 @@ function FinanceApp({ userId, userEmail }) {
             onExport={handleExport} onImport={handleImport}
             onResetDemo={handleResetDemo} onClearAll={handleClearAll}
             onManageAccounts={() => setActiveTab("accounts")} userEmail={userEmail} onSignOut={handleSignOut}
-remindersEnabled={!!appState.meta.remindersEnabled} setRemindersEnabled={handleSetRemindersEnabled} />}
+            remindersEnabled={!!appState.meta.remindersEnabled} setRemindersEnabled={handleSetRemindersEnabled}
+            faceIdEnabled={!!appState.meta.faceIdEnabled} setFaceIdEnabled={handleSetFaceIdEnabled} />}
 
           <BottomNav active={activeTab} onNav={setActiveTab} onAdd={openAddTx} onMore={() => setMoreOpen(true)} />
           <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} onNav={setActiveTab} />
@@ -465,7 +513,6 @@ remindersEnabled={!!appState.meta.remindersEnabled} setRemindersEnabled={handleS
 
           <Sheet open={!!assetSheet} onClose={() => setAssetSheet(null)} title={assetSheet?.mode === "edit" ? "Edit asset" : "Add asset"}>
             {assetSheet && <AssetForm state={appState} initial={assetSheet.data} onSave={handleSaveAsset} onCancel={() => setAssetSheet(null)}
-
               onDelete={assetSheet.mode === "edit" ? () => handleDeleteAsset(assetSheet.data.id) : null} />}
           </Sheet>
 
