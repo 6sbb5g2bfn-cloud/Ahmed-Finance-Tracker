@@ -22,6 +22,7 @@ import ReportsScreen from "./screens/Reports";
 import SettingsScreen from "./screens/Settings";
 import LockScreen from "./components/LockScreen";
 import { registerFaceId } from "./lib/webauthn";
+import { enablePush, disablePush } from "./lib/push";
 
 /* =========================================================================
    ROOT — decides Auth vs the signed-in app based on the Supabase session.
@@ -401,6 +402,22 @@ function FinanceApp({ userId, userEmail }) {
       errorToast({ message: "Couldn't set up Face ID — " + (e.message || "try again") });
     }
   };
+  // Must be called directly from a button's onClick (a real user gesture) - see push.js.
+  const handleSetPushEnabled = async (v) => {
+    if (!v) {
+      setAppState((prev) => ({ ...prev, meta: { ...prev.meta, pushEnabled: false } }));
+      try { await disablePush(userId); await db.setPushEnabled(userId, false); toast("Push notifications off"); } catch (e) { errorToast(e); }
+      return;
+    }
+    try {
+      await enablePush(userId);
+      setAppState((prev) => ({ ...prev, meta: { ...prev.meta, pushEnabled: true } }));
+      await db.setPushEnabled(userId, true);
+      toast("Push notifications on");
+    } catch (e) {
+      errorToast({ message: "Couldn't enable push notifications — " + (e.message || "try again") });
+    }
+  };
 
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(appState, null, 2)], { type: "application/json" });
@@ -498,6 +515,7 @@ function FinanceApp({ userId, userEmail }) {
             onResetDemo={handleResetDemo} onClearAll={handleClearAll}
             onManageAccounts={() => setActiveTab("accounts")} userEmail={userEmail} onSignOut={handleSignOut}
             remindersEnabled={!!appState.meta.remindersEnabled} setRemindersEnabled={handleSetRemindersEnabled}
+            pushEnabled={!!appState.meta.pushEnabled} setPushEnabled={handleSetPushEnabled}
             faceIdEnabled={!!appState.meta.faceIdEnabled} setFaceIdEnabled={handleSetFaceIdEnabled} />}
 
           <BottomNav active={activeTab} onNav={setActiveTab} onAdd={openAddTx} onMore={() => setMoreOpen(true)} />
