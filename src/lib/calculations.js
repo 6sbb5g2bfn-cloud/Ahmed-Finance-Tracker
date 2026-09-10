@@ -73,7 +73,8 @@ export function categorySpend(state, key) {
 export function monthUpcomingRecurring(state, key) {
   const [y, m] = key.split("-").map(Number);
   const start = `${key}-01`;
-  const end = new Date(y, m, 0).toISOString().slice(0, 10);
+  const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+
   const rows = [];
   for (const r of state.recurringPayments) {
     for (const d of occurrencesInRange(r, start, end)) {
@@ -214,7 +215,8 @@ export function financialInsights(state) {
   if (upcoming > 0) {
     insights.push({ icon: "calendar", text: `You have ${fmtNum(upcoming)} ${state.meta.currency} of upcoming commitments in the next 30 days.` });
   }
-  const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10);
+  const endOfMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 0)).toISOString().slice(0, 10);
+
   const daysLeftInMonth = Math.max(1, daysBetween(todayISO(), endOfMonth));
   const disposable = totalBalance(state) - upcomingPayments(state, daysLeftInMonth).reduce((s, r) => s + r.amount, 0);
   insights.push({ icon: "sparkle", text: `Your estimated disposable amount this month is ${fmtNum(Math.max(0, disposable))} ${state.meta.currency}.` });
