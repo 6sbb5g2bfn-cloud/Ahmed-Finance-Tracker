@@ -23,8 +23,10 @@ function generateOccurrences(item, rangeStartISO, rangeEndISO) {
   const end = item.end_date ? new Date(item.end_date + "T00:00:00Z") : null;
   let guard = 0;
   while (cursor <= rangeEnd && guard < 3000) {
-    if (cursor >= rangeStart && (!end || cursor <= end)) dates.push(cursor.toISOString().slice(0, 10));
+        if (cursor >= rangeStart && (!end || cursor <= end)) dates.push(cursor.toISOString().slice(0, 10));
+    if (item.frequency === "once") break;
     const nd = new Date(cursor);
+
     switch (item.frequency) {
       case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
       case "weekly": nd.setUTCDate(nd.getUTCDate() + 7); break;
@@ -49,7 +51,8 @@ function nextUnpostedOccurrence(item) {
   return null;
 }
 
-const RECURRING_THRESHOLD_DAYS = { daily: 1, weekly: 1, monthly: 1, quarterly: 3, yearly: 7 };
+const RECURRING_THRESHOLD_DAYS = { once: 3, daily: 1, weekly: 1, monthly: 1, quarterly: 3, yearly: 7 };
+
 const INSTALLMENT_THRESHOLD_DAYS = 1;
 const DEBT_THRESHOLD_DAYS = 3;
 
