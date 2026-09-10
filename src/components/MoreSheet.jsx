@@ -7,12 +7,13 @@ export default function MoreSheet({ open, onClose, onNav }) {
   const t = useTheme();
   const items = [
     { id: "accounts", label: "Accounts", icon: Wallet, desc: "Balances across banks, cash & cards" },
+    { id: "debts", label: "Installments & debts", icon: CreditCard, desc: "Payment plans & money owed" },
     { id: "assets", label: "Assets", icon: Gem, desc: "Gold, property, stocks & other holdings" },
     { id: "recurring", label: "Recurring & bills", icon: Repeat, desc: "Subscriptions & fixed commitments" },
-    { id: "debts", label: "Installments & debts", icon: CreditCard, desc: "Payment plans & money owed" },
-    { id: "goals", label: "Savings goals", icon: Target, desc: "Targets & progress" },
     { id: "reports", label: "Reports", icon: PieIcon, desc: "Trends & category breakdowns" },
     { id: "settings", label: "Settings", icon: SettingsIcon, desc: "Currency, categories, data" },
+    { id: "goals", label: "Savings goals", icon: Target, desc: "Targets & progress" },
+    { id: "budgets", label: "Budgets", icon: PieIcon, desc: "Spending limits by category" },
   ];
   return (
     <Sheet open={open} onClose={onClose} title="More">
