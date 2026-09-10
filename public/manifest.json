@@ -1,6 +1,7 @@
 {
-  "name": "Finance Tracker",
-  "short_name": "Finance",
+  "name": "Mega Ledger",
+  "short_name": "Mega Ledger",
+
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F6F3EC",
