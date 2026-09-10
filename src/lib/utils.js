@@ -75,6 +75,8 @@ export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
     if (cursor >= rangeStart && (!end || cursor <= end)) {
       dates.push(cursor.toISOString().slice(0, 10));
     }
+        if (item.frequency === "once") break;
+
     const nd = new Date(cursor);
     switch (item.frequency) {
       case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
