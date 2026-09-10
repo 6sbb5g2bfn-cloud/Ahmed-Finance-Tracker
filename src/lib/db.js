@@ -32,7 +32,8 @@ export async function ensureUserSettings(userId) {
   const existing = await supabase.from("user_settings").select("*").eq("user_id", userId).maybeSingle();
   if (existing.error) throw new Error("Loading settings failed: " + existing.error.message);
   if (existing.data) return existing.data;
-  const inserted = await supabase.from("user_settings").insert({ user_id: userId, currency: "SAR", theme: "light" }).select().single();
+  const inserted = await supabase.from("user_settings").insert({ user_id: userId, currency: "EGP", theme: "light" }).select().single();
+
   return must(inserted, "Creating settings");
 }
 
