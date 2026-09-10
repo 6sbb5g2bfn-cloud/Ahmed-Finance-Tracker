@@ -29,7 +29,8 @@ export const DARK = {
 export const FONT_DISPLAY = "'Fraunces', Georgia, serif";
 export const FONT_UI = "'IBM Plex Sans', -apple-system, sans-serif";
 
-export const CURRENCIES = ["SAR", "USD", "EUR", "GBP", "AED", "EGP", "KWD"];
+export const CURRENCIES = ["EGP", "SAR", "USD", "EUR", "GBP", "AED", "KWD"];
+
 
 export const FREQUENCIES = [
   { id: "daily", label: "Daily" },
