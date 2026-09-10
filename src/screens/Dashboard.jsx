@@ -48,7 +48,8 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
     month: monthLabel(k), Income: Math.round(monthIncome(state, k)), Expense: Math.round(monthExpense(state, k)),
   }));
 
-  const availableEst = bal - upcomingPayments(state, daysBetween(todayISO(), new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10))).reduce((s, r) => s + r.amount, 0);
+  const availableEst = bal - upcomingPayments(state, daysBetween(todayISO(), new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 0)).toISOString().slice(0, 10))).reduce((s, r) => s + r.amount, 0);
+
 
   const topBudgets = useMemo(() => {
     return state.budgets
