@@ -33,7 +33,9 @@ export const CURRENCIES = ["EGP", "SAR", "USD", "EUR", "GBP", "AED", "KWD"];
 
 
 export const FREQUENCIES = [
+  { id: "once", label: "Once" },
   { id: "daily", label: "Daily" },
+
   { id: "weekly", label: "Weekly" },
   { id: "monthly", label: "Monthly" },
   { id: "quarterly", label: "Quarterly" },
