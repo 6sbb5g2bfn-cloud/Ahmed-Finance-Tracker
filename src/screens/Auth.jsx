@@ -45,7 +45,8 @@ export default function Auth() {
             <div className="rounded-2xl flex items-center justify-center mb-4" style={{ width: 56, height: 56, background: t.ink }}>
               <Wallet size={24} color={t.bg} />
             </div>
-            <div className="text-[22px] font-medium" style={{ fontFamily: FONT_DISPLAY, color: t.text }}>Finance Tracker</div>
+            <div className="text-[22px] font-medium" style={{ fontFamily: FONT_DISPLAY, color: t.text }}>Mega Ledger</div>
+
             <div className="text-[13px] mt-1" style={{ color: t.textSoft }}>Your money, privately tracked</div>
           </div>
 
