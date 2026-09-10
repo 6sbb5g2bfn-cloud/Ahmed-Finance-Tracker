@@ -1,4 +1,4 @@
-import { Home, Receipt, Plus, PieChart as PieIcon, Menu } from "lucide-react";
+import { Home, Receipt, Plus, Repeat, Menu } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
 export default function BottomNav({ active, onNav, onAdd, onMore }) {
@@ -7,7 +7,7 @@ export default function BottomNav({ active, onNav, onAdd, onMore }) {
     { id: "dashboard", label: "Home", icon: Home },
     { id: "transactions", label: "Activity", icon: Receipt },
     null,
-    { id: "budgets", label: "Budgets", icon: PieIcon },
+    { id: "recurring", label: "Recurring", icon: Repeat },
     { id: "more", label: "More", icon: Menu },
   ];
   return (
