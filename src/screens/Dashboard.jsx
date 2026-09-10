@@ -10,7 +10,7 @@ import { fmtNum, fmtDate, fmtDateLong, todayISO, thisMonthKey, daysBetween, mont
 import {
   totalBalance, totalAssetsValue, totalAssetsGain, monthIncome, monthExpense, monthFixedCommitmentsTotal,
   monthInstallmentsTotal, goalContributed, upcomingPayments, financialInsights, categorySpend, last6Months,
-  chartPalette, frequentTransactions,
+  chartPalette, frequentTransactions, accountBalance,
 } from "../lib/calculations";
 import { Screen, SectionTitle, Card, Row, Amount, ProgressBar, IconBadge, CategoryIcon } from "../components/ui";
 
@@ -25,6 +25,7 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
   const t = useTheme();
   const key = thisMonthKey();
   const frequent = useMemo(() => frequentTransactions(state, 3), [state]);
+  const activeAccounts = useMemo(() => state.accounts.filter((a) => a.status === "active"), [state]);
   const bal = totalBalance(state);
   const assetsVal = totalAssetsValue(state);
   const assetsGain = totalAssetsGain(state);
@@ -49,7 +50,6 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
   }));
 
   const availableEst = bal - upcomingPayments(state, daysBetween(todayISO(), new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 0)).toISOString().slice(0, 10))).reduce((s, r) => s + r.amount, 0);
-
 
   const topBudgets = useMemo(() => {
     return state.budgets
@@ -109,6 +109,31 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
         <Card className="p-4">
           <div className="flex items-center gap-1.5 text-[12px]" style={{ color: t.textSoft }}><CreditCard size={13} /> Installments</div>
           <div className="mt-1"><Amount value={instTotal} size="lg" /></div>
+        </Card>
+      </div>
+
+      {/* ACCOUNTS PREVIEW */}
+      <SectionTitle right={<button onClick={() => onNav("accounts")} className="text-[12px] font-medium flex items-center" style={{ color: t.textSoft }}>All <ChevronRight size={14} /></button>}>
+        Accounts
+      </SectionTitle>
+      <div className="px-4">
+        <Card>
+          {activeAccounts.length === 0 ? (
+            <div className="px-4 py-6 text-center text-[13px]" style={{ color: t.textFaint }}>No accounts yet.</div>
+          ) : (
+            activeAccounts.map((a, i) => (
+              <Row key={a.id} noBorder={i === activeAccounts.length - 1}
+                onClick={() => onNav("accounts")}
+                left={
+                  <div className="flex items-center gap-3">
+                    <IconBadge bg={t.bgAlt}><Wallet size={16} color={t.textSoft} /></IconBadge>
+                    <div className="text-[14px] font-medium">{a.name}</div>
+                  </div>
+                }
+                right={<Amount value={accountBalance(state, a.id)} size="sm" />}
+              />
+            ))
+          )}
         </Card>
       </div>
 
