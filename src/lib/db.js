@@ -61,7 +61,7 @@ export async function fetchAllData(userId) {
   ]);
 
   return {
-    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled, pushEnabled: !!settings.push_enabled, faceIdEnabled: !!settings.face_id_enabled, faceIdCredentialId: settings.face_id_credential_id || null },
+    meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled, pushEnabled: !!settings.push_enabled, faceIdEnabled: !!settings.face_id_enabled, faceIdCredentialId: settings.face_id_credential_id || null, fxOverrides: settings.fx_overrides || {} },
     accounts: must(accounts, "Loading accounts").map(mapAccount),
     categories: must(categories, "Loading categories").map(mapCategory),
     transactions: must(transactions, "Loading transactions").map(mapTransaction),
@@ -332,6 +332,10 @@ export async function setFaceIdEnabled(userId, enabled, credentialId) {
 export async function setPushEnabled(userId, enabled) {
   const res = await supabase.from("user_settings").update({ push_enabled: enabled, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating push notification preference");
+}
+export async function setFxOverrides(userId, fxOverrides) {
+  const res = await supabase.from("user_settings").update({ fx_overrides: fxOverrides, updated_at: new Date().toISOString() }).eq("user_id", userId);
+  must(res, "Updating exchange rate overrides");
 }
 
 /* =========================================================================
