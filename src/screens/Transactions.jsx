@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, SlidersHorizontal, Receipt, ArrowLeftRight, Trash2 } from "lucide-react";
+import { Search, SlidersHorizontal, Receipt, ArrowLeftRight, Trash2, RotateCcw } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-import { FONT_DISPLAY } from "../lib/constants";
-import { fmtDate, todayISO, uid } from "../lib/utils";
+import { FONT_DISPLAY, CURRENCIES } from "../lib/constants";
+import { fmtDate, fmtNum, todayISO, uid } from "../lib/utils";
 import {
   Screen, Card, Row, Amount, EmptyState, IconBadge, CategoryIcon, Sheet, FieldLabel, SelectPills,
   GhostButton, PrimaryButton, TextInput, ConfirmDialog,
@@ -11,13 +11,49 @@ import {
 export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) {
   const t = useTheme();
   const [type, setType] = useState(initial?.type || "expense");
-  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [amount, setAmount] = useState(initial ? String(initial.originalAmount ?? initial.amount) : "");
   const [categoryId, setCategoryId] = useState(initial?.categoryId || null);
   const [accountId, setAccountId] = useState(initial?.accountId || state.accounts[0]?.id || null);
   const [toAccountId, setToAccountId] = useState(initial?.toAccountId || null);
   const [date, setDate] = useState(initial?.date || todayISO());
   const [notes, setNotes] = useState(initial?.notes || "");
   const [confirmDel, setConfirmDel] = useState(false);
+
+  const account = state.accounts.find((a) => a.id === accountId);
+  const accountCurrency = account?.currency || state.meta.currency;
+  const [txCurrency, setTxCurrency] = useState(initial?.originalCurrency || accountCurrency);
+  const [rate, setRate] = useState(initial?.exchangeRate != null ? String(initial.exchangeRate) : "");
+  const [rateLoading, setRateLoading] = useState(false);
+  const [rateError, setRateError] = useState(null);
+  const isForeign = txCurrency !== accountCurrency;
+
+  // When switching to a different account, the "account's currency" default
+  // no longer applies automatically once the user has deliberately picked one -
+  // but on first load for a new transaction, follow the account's currency.
+  useEffect(() => {
+    if (!initial) setTxCurrency(accountCurrency);
+    // eslint-disable-next-line
+  }, [accountId]);
+
+  const fetchLiveRate = async () => {
+    if (!isForeign) return;
+    setRateLoading(true);
+    setRateError(null);
+    try {
+      const resp = await fetch(`/api/exchange-rate?from=${encodeURIComponent(txCurrency)}&to=${encodeURIComponent(accountCurrency)}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Couldn't load a live rate");
+      setRate(String(data.rate));
+    } catch (e) {
+      setRateError(e.message || "Couldn't load a live rate");
+    } finally {
+      setRateLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (isForeign) fetchLiveRate();
+    // eslint-disable-next-line
+  }, [txCurrency, accountCurrency]);
 
   const cats = state.categories.filter((c) => c.type === type || c.type === "both");
   useEffect(() => {
@@ -26,15 +62,22 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
   }, [type]);
 
   const activeAccounts = state.accounts.filter((a) => a.status === "active");
-  const canSave = amount && parseFloat(amount) > 0 && accountId && (type !== "transfer" || (toAccountId && toAccountId !== accountId));
+  const parsedRate = parseFloat(rate);
+  const convertedAmount = isForeign && amount && parsedRate > 0 ? parseFloat(amount) * parsedRate : null;
+  const canSave = amount && parseFloat(amount) > 0 && accountId && (type !== "transfer" || (toAccountId && toAccountId !== accountId)) && (!isForeign || parsedRate > 0);
 
   const submit = () => {
     if (!canSave) return;
     onSave({
       id: initial?.id || uid(),
-      type, amount: parseFloat(amount), categoryId: type === "transfer" ? null : categoryId,
+      type,
+      amount: isForeign ? convertedAmount : parseFloat(amount),
+      categoryId: type === "transfer" ? null : categoryId,
       accountId, toAccountId: type === "transfer" ? toAccountId : null,
       date, notes, createdAt: initial?.createdAt || todayISO(),
+      originalAmount: isForeign ? parseFloat(amount) : null,
+      originalCurrency: isForeign ? txCurrency : null,
+      exchangeRate: isForeign ? parsedRate : null,
     });
   };
 
@@ -56,7 +99,16 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
       />
 
       <div className="mt-5">
-        <FieldLabel>Amount ({state.meta.currency})</FieldLabel>
+        <div className="flex items-center justify-between">
+          <FieldLabel>Amount</FieldLabel>
+        </div>
+        <div className="mb-2">
+          <SelectPills
+            options={CURRENCIES.map((c) => ({ id: c, label: c }))}
+            value={txCurrency} onChange={setTxCurrency}
+            getLabel={(o) => o.label}
+          />
+        </div>
         <input
           autoFocus type="number" inputMode="decimal" step="0.01" min="0" placeholder="0.00"
           value={amount} onChange={(e) => setAmount(e.target.value)}
@@ -64,6 +116,29 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
           style={{ fontFamily: FONT_DISPLAY, color: t.text, borderBottom: `2px solid ${t.line}`, fontVariantNumeric: "tabular-nums" }}
         />
       </div>
+
+      {isForeign && (
+        <div className="mt-3 rounded-2xl p-4" style={{ background: t.ink }}>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>1 {txCurrency} = ? {accountCurrency}</span>
+            <button onClick={fetchLiveRate} className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>
+              <RotateCcw size={11} /> {rateLoading ? "loading…" : "refresh"}
+            </button>
+          </div>
+          <input
+            type="number" inputMode="decimal" step="0.0001" min="0" placeholder="0.00"
+            value={rate} onChange={(e) => setRate(e.target.value)}
+            className="w-full text-lg bg-transparent outline-none mt-1"
+            style={{ color: t.bg, borderBottom: "1px solid rgba(246,243,236,0.25)" }}
+          />
+          {rateError && <div className="mt-2 text-[11px]" style={{ color: "#E08585" }}>{rateError} — enter it yourself above.</div>}
+          {convertedAmount != null && (
+            <div className="mt-2.5 text-[13px]" style={{ color: t.bg }}>
+              ≈ {fmtNum(convertedAmount)} {accountCurrency} <span style={{ color: "rgba(246,243,236,0.6)" }}>(recorded against this account)</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {type !== "transfer" && (
         <div className="mt-5">
