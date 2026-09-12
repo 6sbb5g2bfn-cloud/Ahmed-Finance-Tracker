@@ -8,16 +8,15 @@ import { uid, todayISO, addDaysISO, addMonthsISO } from "./utils";
    (payments, contributions, postedDates) are stored camelCase as-is, so
    only the top-level table columns need translating.
    ========================================================================= */
-const mapAccount = (r) => ({ id: r.id, name: r.name, type: r.type, initialBalance: Number(r.initial_balance), status: r.status, createdAt: r.created_at?.slice(0, 10) });
+const mapAccount = (r) => ({ id: r.id, name: r.name, type: r.type, initialBalance: Number(r.initial_balance), status: r.status, currency: r.currency || null, createdAt: r.created_at?.slice(0, 10) });
 const mapCategory = (r) => ({ id: r.id, name: r.name, type: r.type, icon: r.icon, core: r.core });
-const mapTransaction = (r) => ({ id: r.id, type: r.type, amount: Number(r.amount), categoryId: r.category_id, accountId: r.account_id, toAccountId: r.to_account_id, date: r.date, notes: r.notes || "", createdAt: r.created_at });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, amount: Number(r.amount), categoryId: r.category_id, accountId: r.account_id, toAccountId: r.to_account_id, date: r.date, notes: r.notes || "", originalAmount: r.original_amount != null ? Number(r.original_amount) : null, originalCurrency: r.original_currency || null, exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null, createdAt: r.created_at });
 const mapRecurring = (r) => ({ id: r.id, name: r.name, commitmentType: r.commitment_type, amount: Number(r.amount), frequency: r.frequency, startDate: r.start_date, endDate: r.end_date, categoryId: r.category_id, accountId: r.account_id, active: r.active, postedDates: r.posted_dates || [] });
 const mapInstallment = (r) => ({ id: r.id, name: r.name, totalAmount: Number(r.total_amount), monthlyPayment: Number(r.monthly_payment), numberOfPayments: r.number_of_payments, startDate: r.start_date, categoryId: r.category_id, accountId: r.account_id, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
 const mapDebt = (r) => ({ id: r.id, direction: r.direction, person: r.person, amount: Number(r.amount), date: r.date, dueDate: r.due_date, notes: r.notes || "", status: r.status, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
 const mapBudget = (r) => ({ id: r.id, categoryId: r.category_id, amount: Number(r.amount) });
 const mapGoal = (r) => ({ id: r.id, name: r.name, target: Number(r.target), targetDate: r.target_date, accountId: r.account_id, contributions: (r.contributions || []).map((c) => ({ ...c, amount: Number(c.amount) })) });
 const mapAsset = (r) => ({ id: r.id, name: r.name, type: r.type, currentValue: Number(r.current_value), costBasis: Number(r.cost_basis), purchaseDate: r.purchase_date, weightGrams: r.weight_grams != null ? Number(r.weight_grams) : null, karat: r.karat || null, notes: r.notes || "", createdAt: r.created_at?.slice(0, 10) });
-
 
 function must(res, action) {
   if (res.error) throw new Error(`${action} failed: ${res.error.message}`);
@@ -33,7 +32,6 @@ export async function ensureUserSettings(userId) {
   if (existing.error) throw new Error("Loading settings failed: " + existing.error.message);
   if (existing.data) return existing.data;
   const inserted = await supabase.from("user_settings").insert({ user_id: userId, currency: "EGP", theme: "light" }).select().single();
-
   return must(inserted, "Creating settings");
 }
 
@@ -64,8 +62,6 @@ export async function fetchAllData(userId) {
 
   return {
     meta: { currency: settings.currency, theme: settings.theme, remindersEnabled: !!settings.reminders_enabled, pushEnabled: !!settings.push_enabled, faceIdEnabled: !!settings.face_id_enabled, faceIdCredentialId: settings.face_id_credential_id || null },
-
-
     accounts: must(accounts, "Loading accounts").map(mapAccount),
     categories: must(categories, "Loading categories").map(mapCategory),
     transactions: must(transactions, "Loading transactions").map(mapTransaction),
@@ -83,13 +79,13 @@ export async function fetchAllData(userId) {
    ========================================================================= */
 export async function createAccount(userId, acc) {
   const res = await supabase.from("accounts").insert({
-    user_id: userId, name: acc.name, type: acc.type, initial_balance: acc.initialBalance, status: acc.status || "active",
+    user_id: userId, name: acc.name, type: acc.type, initial_balance: acc.initialBalance, status: acc.status || "active", currency: acc.currency || null,
   }).select().single();
   return mapAccount(must(res, "Creating account"));
 }
 export async function updateAccount(userId, acc) {
   const res = await supabase.from("accounts").update({
-    name: acc.name, type: acc.type, initial_balance: acc.initialBalance, status: acc.status,
+    name: acc.name, type: acc.type, initial_balance: acc.initialBalance, status: acc.status, currency: acc.currency || null,
   }).eq("id", acc.id).eq("user_id", userId).select().single();
   return mapAccount(must(res, "Updating account"));
 }
@@ -117,6 +113,7 @@ export async function createTransaction(userId, tx) {
   const res = await supabase.from("transactions").insert({
     user_id: userId, type: tx.type, amount: tx.amount, category_id: tx.categoryId, account_id: tx.accountId,
     to_account_id: tx.toAccountId, date: tx.date, notes: tx.notes || "",
+    original_amount: tx.originalAmount ?? null, original_currency: tx.originalCurrency ?? null, exchange_rate: tx.exchangeRate ?? null,
   }).select().single();
   return mapTransaction(must(res, "Creating transaction"));
 }
@@ -124,6 +121,7 @@ export async function updateTransaction(userId, tx) {
   const res = await supabase.from("transactions").update({
     type: tx.type, amount: tx.amount, category_id: tx.categoryId, account_id: tx.accountId,
     to_account_id: tx.toAccountId, date: tx.date, notes: tx.notes || "",
+    original_amount: tx.originalAmount ?? null, original_currency: tx.originalCurrency ?? null, exchange_rate: tx.exchangeRate ?? null,
   }).eq("id", tx.id).eq("user_id", userId).select().single();
   return mapTransaction(must(res, "Updating transaction"));
 }
@@ -307,7 +305,6 @@ export async function updateAsset(userId, a) {
   }).eq("id", a.id).eq("user_id", userId).select().single();
   return mapAsset(must(res, "Updating asset"));
 }
-
 export async function deleteAsset(userId, id) {
   const res = await supabase.from("assets").delete().eq("id", id).eq("user_id", userId);
   must(res, "Deleting asset");
@@ -324,7 +321,6 @@ export async function setTheme(userId, theme) {
   const res = await supabase.from("user_settings").update({ theme, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating theme");
 }
-
 export async function setRemindersEnabled(userId, enabled) {
   const res = await supabase.from("user_settings").update({ reminders_enabled: enabled, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating reminder preference");
@@ -337,8 +333,6 @@ export async function setPushEnabled(userId, enabled) {
   const res = await supabase.from("user_settings").update({ push_enabled: enabled, updated_at: new Date().toISOString() }).eq("user_id", userId);
   must(res, "Updating push notification preference");
 }
-
-
 
 /* =========================================================================
    BULK OPERATIONS — clear all, load sample data, import a JSON export.
