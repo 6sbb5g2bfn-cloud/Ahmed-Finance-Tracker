@@ -21,12 +21,12 @@ function InsightIcon({ kind, color }) {
   return <Sparkles size={15} color={color} />;
 }
 
-export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, currency }) {
+export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, currency, fxRates }) {
   const t = useTheme();
   const key = thisMonthKey();
   const frequent = useMemo(() => frequentTransactions(state, 3), [state]);
   const activeAccounts = useMemo(() => state.accounts.filter((a) => a.status === "active"), [state]);
-  const bal = totalBalance(state);
+  const bal = totalBalance(state, fxRates);
   const assetsVal = totalAssetsValue(state);
   const assetsGain = totalAssetsGain(state);
   const netW = bal + assetsVal;
@@ -130,7 +130,14 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
                     <div className="text-[14px] font-medium">{a.name}</div>
                   </div>
                 }
-                right={<Amount value={accountBalance(state, a.id)} size="sm" />}
+                right={
+                  <div className="text-right">
+                    <Amount value={accountBalance(state, a.id)} size="sm" />
+                    {a.currency && a.currency !== state.meta.currency && (
+                      <div className="text-[10px]" style={{ color: t.textFaint }}>{a.currency}</div>
+                    )}
+                  </div>
+                }
               />
             ))
           )}
