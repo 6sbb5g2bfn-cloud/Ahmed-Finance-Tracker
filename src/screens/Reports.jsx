@@ -9,7 +9,7 @@ import {
 } from "../lib/calculations";
 import { Screen, SectionTitle, Card, Amount, ProgressBar } from "../components/ui";
 
-export default function ReportsScreen({ state }) {
+export default function ReportsScreen({ state, fxRates }) {
   const t = useTheme();
   const key = thisMonthKey();
   const prevKey = monthKeyOf(addMonthsISO(todayISO(), -1));
@@ -36,7 +36,7 @@ export default function ReportsScreen({ state }) {
   const assetsGain = totalAssetsGain(state);
   const assetsGainPct = assetsCost > 0 ? (assetsGain / assetsCost) * 100 : null;
   const assetBreakdown = assetsByType(state);
-  const netW = totalBalance(state) + assetsVal;
+  const netW = totalBalance(state, fxRates) + assetsVal;
 
   const Delta = ({ now, prev, invert }) => {
     if (prev === 0) return null;
