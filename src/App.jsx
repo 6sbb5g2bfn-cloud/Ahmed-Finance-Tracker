@@ -57,6 +57,7 @@ export default function App() {
    ========================================================================= */
 function FinanceApp({ userId, userEmail }) {
   const [appState, setAppState] = useState(null);
+  const [fxRates, setFxRates] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -106,6 +107,35 @@ function FinanceApp({ userId, userEmail }) {
   useEffect(() => {
     if (appState && locked === null) setLocked(!!appState.meta.faceIdEnabled);
   }, [appState, locked]);
+
+  // Fetch a live rate for every distinct foreign-currency account, once, whenever
+  // the set of currencies in use changes - not on every appState update, so this
+  // doesn't refetch on every transaction edit. Manual overrides (set in Settings)
+  // are checked first and never overwritten by a live fetch.
+  const foreignCurrencies = appState
+    ? [...new Set(appState.accounts.filter((a) => a.status === "active" && a.currency && a.currency !== appState.meta.currency).map((a) => a.currency))].sort().join(",")
+    : "";
+  useEffect(() => {
+    if (!appState || !foreignCurrencies) return;
+    const mainCurrency = appState.meta.currency;
+    const overrides = appState.meta.fxOverrides || {};
+    const currencies = foreignCurrencies.split(",");
+    (async () => {
+      const entries = await Promise.all(currencies.map(async (cur) => {
+        if (overrides[cur] != null) return [cur, Number(overrides[cur])];
+        try {
+          const resp = await fetch(`/api/exchange-rate?from=${encodeURIComponent(cur)}&to=${encodeURIComponent(mainCurrency)}`);
+          const data = await resp.json();
+          if (!resp.ok) throw new Error(data.error || "rate fetch failed");
+          return [cur, data.rate];
+        } catch (e) {
+          return [cur, null];
+        }
+      }));
+      setFxRates(Object.fromEntries(entries.filter(([, rate]) => rate != null)));
+    })();
+    // eslint-disable-next-line
+  }, [foreignCurrencies, appState?.meta.currency]);
 
   // Re-lock the instant the app is backgrounded (covers both "require Face ID
   // on return" and "don't show real data in the iOS app-switcher preview").
@@ -496,11 +526,11 @@ function FinanceApp({ userId, userEmail }) {
     <ThemeCtx.Provider value={theme}>
       <div className={darkMode ? "dark-scheme" : ""} style={{ minHeight: "100vh", background: theme.bg }}>
         <div className="relative mx-auto" style={{ maxWidth: 480, minHeight: "100vh", background: theme.bg }}>
-          {activeTab === "dashboard" && <Dashboard state={appState} onNav={setActiveTab}
+          {activeTab === "dashboard" && <Dashboard state={appState} onNav={setActiveTab} fxRates={fxRates}
             onOpenOccurrence={(u) => { if (u.kind === "recurring") setPayRecurringTarget({ item: u.ref, occurrenceDate: u.date }); else if (u.kind === "installment") setPayInstTarget(u.ref); else if (u.kind === "debt") setPayDebtTarget(u.ref); }}
             onRepeat={handleRepeat} currency={cur} />}
           {activeTab === "transactions" && <TransactionsScreen state={appState} onEdit={openEditTx} onAdd={openAddTx} />}
-          {activeTab === "accounts" && <AccountsScreen state={appState} onAdd={() => setAccSheet({ mode: "add", data: null })} onEdit={(a) => setAccSheet({ mode: "edit", data: a })} />}
+          {activeTab === "accounts" && <AccountsScreen state={appState} fxRates={fxRates} onAdd={() => setAccSheet({ mode: "add", data: null })} onEdit={(a) => setAccSheet({ mode: "edit", data: a })} />}
           {activeTab === "assets" && <AssetsScreen state={appState} onAdd={() => setAssetSheet({ mode: "add", data: null })} onEdit={(a) => setAssetSheet({ mode: "edit", data: a })} />}
           {activeTab === "budgets" && <BudgetsScreen state={appState} onAdd={() => setBudgetSheet({ mode: "add", data: null })} onEdit={(b) => setBudgetSheet({ mode: "edit", data: b })} />}
           {activeTab === "recurring" && <RecurringScreen state={appState} onAdd={() => setRecSheet({ mode: "add", data: null })} onEdit={(r) => setRecSheet({ mode: "edit", data: r })} onMarkPaid={(item, date) => setPayRecurringTarget({ item, occurrenceDate: date })} />}
@@ -508,7 +538,7 @@ function FinanceApp({ userId, userEmail }) {
             onAddInstallment={() => setInstSheet({ mode: "add", data: null })} onEditInstallment={(i) => setInstSheet({ mode: "edit", data: i })} onPayInstallment={(i) => setPayInstTarget(i)}
             onAddDebt={() => setDebtSheet({ mode: "add", data: null })} onEditDebt={(d) => setDebtSheet({ mode: "edit", data: d })} onPayDebt={(d) => setPayDebtTarget(d)} />}
           {activeTab === "goals" && <SavingsGoalsScreen state={appState} onAdd={() => setGoalSheet({ mode: "add", data: null })} onEdit={(g) => setGoalSheet({ mode: "edit", data: g })} onContribute={(g) => setContributeTarget(g)} />}
-          {activeTab === "reports" && <ReportsScreen state={appState} />}
+          {activeTab === "reports" && <ReportsScreen state={appState} fxRates={fxRates} />}
           {activeTab === "settings" && <SettingsScreen state={appState} darkMode={darkMode} setDarkMode={handleSetDarkMode} onSetCurrency={handleSetCurrency}
             onAddCategory={handleAddCategory} onRenameCategory={handleRenameCategory} onDeleteCategory={handleDeleteCategory}
             onExport={handleExport} onImport={handleImport}
@@ -526,7 +556,7 @@ function FinanceApp({ userId, userEmail }) {
           </Sheet>
 
           <Sheet open={!!accSheet} onClose={() => setAccSheet(null)} title={accSheet?.mode === "edit" ? "Edit account" : "Add account"}>
-            {accSheet && <AccountForm initial={accSheet.data} onSave={handleSaveAccount} onCancel={() => setAccSheet(null)} onArchive={accSheet.mode === "edit" ? () => handleArchiveAccount(accSheet.data.id) : null} />}
+            {accSheet && <AccountForm state={appState} initial={accSheet.data} onSave={handleSaveAccount} onCancel={() => setAccSheet(null)} onArchive={accSheet.mode === "edit" ? () => handleArchiveAccount(accSheet.data.id) : null} />}
           </Sheet>
 
           <Sheet open={!!assetSheet} onClose={() => setAssetSheet(null)} title={assetSheet?.mode === "edit" ? "Edit asset" : "Add asset"}>
