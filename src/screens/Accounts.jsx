@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { Plus, Wallet, Trash2 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-import { FONT_DISPLAY, ACCOUNT_TYPES } from "../lib/constants";
+import { FONT_DISPLAY, ACCOUNT_TYPES, CURRENCIES } from "../lib/constants";
 import { todayISO, uid } from "../lib/utils";
 import { accountBalance, totalBalance } from "../lib/calculations";
 import { Screen, Card, Amount, EmptyState, IconBadge, FieldLabel, TextInput, SelectPills, PrimaryButton } from "../components/ui";
 
-export function AccountForm({ initial, onSave, onCancel, onArchive }) {
+export function AccountForm({ state, initial, onSave, onCancel, onArchive }) {
   const t = useTheme();
   const [name, setName] = useState(initial?.name || "");
   const [type, setType] = useState(initial?.type || "bank");
   const [initialBalance, setInitialBalance] = useState(initial ? String(initial.initialBalance) : "0");
+  const [currency, setCurrency] = useState(initial?.currency || state.meta.currency);
   const canSave = name.trim().length > 0;
   return (
     <div>
@@ -18,6 +19,14 @@ export function AccountForm({ initial, onSave, onCancel, onArchive }) {
       <TextInput value={name} onChange={setName} placeholder="e.g. Main Bank" autoFocus />
       <div className="mt-5"><FieldLabel>Type</FieldLabel>
         <SelectPills value={type} onChange={setType} options={ACCOUNT_TYPES} getLabel={(o) => o.label} />
+      </div>
+      <div className="mt-5"><FieldLabel>Currency</FieldLabel>
+        <SelectPills value={currency} onChange={setCurrency} options={CURRENCIES.map((c) => ({ id: c, label: c }))} getLabel={(o) => o.label} />
+        {currency !== state.meta.currency && (
+          <div className="mt-2 text-[11px]" style={{ color: t.textFaint }}>
+            This account's balance is in {currency}. It'll convert to {state.meta.currency} for your net worth total.
+          </div>
+        )}
       </div>
       <div className="mt-5">
         <FieldLabel>{initial ? "Initial balance" : "Starting balance"}</FieldLabel>
@@ -31,17 +40,17 @@ export function AccountForm({ initial, onSave, onCancel, onArchive }) {
         )}
         <PrimaryButton full disabled={!canSave} onClick={() => onSave({
           id: initial?.id || uid(), name: name.trim(), type, initialBalance: parseFloat(initialBalance || "0"),
-          status: initial?.status || "active", createdAt: initial?.createdAt || todayISO(),
+          status: initial?.status || "active", currency, createdAt: initial?.createdAt || todayISO(),
         })}>{initial ? "Save changes" : "Add account"}</PrimaryButton>
       </div>
     </div>
   );
 }
 
-export default function AccountsScreen({ state, onAdd, onEdit }) {
+export default function AccountsScreen({ state, onAdd, onEdit, fxRates }) {
   const t = useTheme();
   const active = state.accounts.filter((a) => a.status === "active");
-  const total = totalBalance(state);
+  const total = totalBalance(state, fxRates);
   return (
     <Screen>
       <div className="px-4 pt-6 flex items-center justify-between">
@@ -72,7 +81,12 @@ export default function AccountsScreen({ state, onAdd, onEdit }) {
                     <div className="text-[12px]" style={{ color: t.textSoft }}>{meta.label}</div>
                   </div>
                 </div>
-                <Amount value={bal} size="base" tone={bal < 0 ? "neg" : undefined} />
+                <div className="text-right">
+                  <Amount value={bal} size="base" tone={bal < 0 ? "neg" : undefined} />
+                  {a.currency && a.currency !== state.meta.currency && (
+                    <div className="text-[11px]" style={{ color: t.textFaint }}>{a.currency}</div>
+                  )}
+                </div>
               </Card>
             );
           })}
