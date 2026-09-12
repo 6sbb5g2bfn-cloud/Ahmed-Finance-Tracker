@@ -25,8 +25,18 @@ export function accountBalance(state, accountId) {
   return bal;
 }
 
-export function totalBalance(state) {
-  return state.accounts.filter((a) => a.status === "active").reduce((s, a) => s + accountBalance(state, a.id), 0);
+// fxRates: resolved { CURRENCY_CODE: rate_to_main_currency } map, built once at
+// the app level (see App.jsx) so this stays a plain synchronous calculation -
+// no network calls happen inside here. Accounts already in the main currency,
+// or with no rate available yet, are simply added unconverted.
+export function totalBalance(state, fxRates = {}) {
+  return state.accounts.filter((a) => a.status === "active").reduce((s, a) => {
+    const bal = accountBalance(state, a.id);
+    const currency = a.currency || state.meta.currency;
+    if (currency === state.meta.currency) return s + bal;
+    const rate = fxRates[currency];
+    return s + (rate ? bal * rate : bal);
+  }, 0);
 }
 
 export function totalAssetsValue(state) {
@@ -38,8 +48,8 @@ export function totalAssetsCost(state) {
 export function totalAssetsGain(state) {
   return totalAssetsValue(state) - totalAssetsCost(state);
 }
-export function netWorth(state) {
-  return totalBalance(state) + totalAssetsValue(state);
+export function netWorth(state, fxRates = {}) {
+  return totalBalance(state, fxRates) + totalAssetsValue(state);
 }
 export function assetsByType(state) {
   const byType = {};
@@ -74,7 +84,6 @@ export function monthUpcomingRecurring(state, key) {
   const [y, m] = key.split("-").map(Number);
   const start = `${key}-01`;
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
-
   const rows = [];
   for (const r of state.recurringPayments) {
     for (const d of occurrencesInRange(r, start, end)) {
@@ -216,7 +225,6 @@ export function financialInsights(state) {
     insights.push({ icon: "calendar", text: `You have ${fmtNum(upcoming)} ${state.meta.currency} of upcoming commitments in the next 30 days.` });
   }
   const endOfMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 0)).toISOString().slice(0, 10);
-
   const daysLeftInMonth = Math.max(1, daysBetween(todayISO(), endOfMonth));
   const disposable = totalBalance(state) - upcomingPayments(state, daysLeftInMonth).reduce((s, r) => s + r.amount, 0);
   insights.push({ icon: "sparkle", text: `Your estimated disposable amount this month is ${fmtNum(Math.max(0, disposable))} ${state.meta.currency}.` });
