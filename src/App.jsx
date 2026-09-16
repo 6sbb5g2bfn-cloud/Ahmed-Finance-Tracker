@@ -532,7 +532,7 @@ function FinanceApp({ userId, userEmail }) {
           {activeTab === "transactions" && <TransactionsScreen state={appState} onEdit={openEditTx} onAdd={openAddTx} />}
           {activeTab === "accounts" && <AccountsScreen state={appState} fxRates={fxRates} onAdd={() => setAccSheet({ mode: "add", data: null })} onEdit={(a) => setAccSheet({ mode: "edit", data: a })} />}
           {activeTab === "assets" && <AssetsScreen state={appState} onAdd={() => setAssetSheet({ mode: "add", data: null })} onEdit={(a) => setAssetSheet({ mode: "edit", data: a })} />}
-          {activeTab === "budgets" && <BudgetsScreen state={appState} onAdd={() => setBudgetSheet({ mode: "add", data: null })} onEdit={(b) => setBudgetSheet({ mode: "edit", data: b })} />}
+          {activeTab === "budgets" && <BudgetsScreen state={appState} fxRates={fxRates} onAdd={() => setBudgetSheet({ mode: "add", data: null })} onEdit={(b) => setBudgetSheet({ mode: "edit", data: b })} />}
           {activeTab === "recurring" && <RecurringScreen state={appState} onAdd={() => setRecSheet({ mode: "add", data: null })} onEdit={(r) => setRecSheet({ mode: "edit", data: r })} onMarkPaid={(item, date) => setPayRecurringTarget({ item, occurrenceDate: date })} />}
           {activeTab === "debts" && <InstallmentsDebtsScreen state={appState}
             onAddInstallment={() => setInstSheet({ mode: "add", data: null })} onEditInstallment={(i) => setInstSheet({ mode: "edit", data: i })} onPayInstallment={(i) => setPayInstTarget(i)}
