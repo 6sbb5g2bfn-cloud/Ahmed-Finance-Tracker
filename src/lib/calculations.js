@@ -63,18 +63,29 @@ export function txInMonth(state, key) {
   return state.transactions.filter((t) => monthKeyOf(t.date) === key);
 }
 
-export function monthIncome(state, key) {
-  return txInMonth(state, key).filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-}
-export function monthExpense(state, key) {
-  return txInMonth(state, key).filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+// Converts a transaction's amount from its account's own currency into the
+// main currency, using the resolved fxRates map. Falls back to the raw amount
+// if no rate is available yet (better than hiding data while a rate loads).
+function txAmountConverted(state, t, fxRates) {
+  const account = state.accounts.find((a) => a.id === t.accountId);
+  const currency = account?.currency || state.meta.currency;
+  if (currency === state.meta.currency) return t.amount;
+  const rate = fxRates[currency];
+  return rate ? t.amount * rate : t.amount;
 }
 
-export function categorySpend(state, key) {
+export function monthIncome(state, key, fxRates = {}) {
+  return txInMonth(state, key).filter((t) => t.type === "income").reduce((s, t) => s + txAmountConverted(state, t, fxRates), 0);
+}
+export function monthExpense(state, key, fxRates = {}) {
+  return txInMonth(state, key).filter((t) => t.type === "expense").reduce((s, t) => s + txAmountConverted(state, t, fxRates), 0);
+}
+
+export function categorySpend(state, key, fxRates = {}) {
   const map = {};
   for (const t of txInMonth(state, key)) {
     if (t.type !== "expense") continue;
-    map[t.categoryId] = (map[t.categoryId] || 0) + t.amount;
+    map[t.categoryId] = (map[t.categoryId] || 0) + txAmountConverted(state, t, fxRates);
   }
   return map;
 }
@@ -198,12 +209,12 @@ export function last6Months() {
   return arr;
 }
 
-export function financialInsights(state) {
+export function financialInsights(state, fxRates = {}) {
   const insights = [];
   const key = thisMonthKey();
   const prevKey = monthKeyOf(addMonthsISO(todayISO(), -1));
-  const catNow = categorySpend(state, key);
-  const catPrev = categorySpend(state, prevKey);
+  const catNow = categorySpend(state, key, fxRates);
+  const catPrev = categorySpend(state, prevKey, fxRates);
   let biggestDelta = null;
   for (const cid of Object.keys(catNow)) {
     const now = catNow[cid], prev = catPrev[cid] || 0;
@@ -226,7 +237,7 @@ export function financialInsights(state) {
   }
   const endOfMonth = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 0)).toISOString().slice(0, 10);
   const daysLeftInMonth = Math.max(1, daysBetween(todayISO(), endOfMonth));
-  const disposable = totalBalance(state) - upcomingPayments(state, daysLeftInMonth).reduce((s, r) => s + r.amount, 0);
+  const disposable = totalBalance(state, fxRates) - upcomingPayments(state, daysLeftInMonth).reduce((s, r) => s + r.amount, 0);
   insights.push({ icon: "sparkle", text: `Your estimated disposable amount this month is ${fmtNum(Math.max(0, disposable))} ${state.meta.currency}.` });
   return insights.slice(0, 3);
 }
