@@ -10,7 +10,7 @@ import { uid, todayISO, addDaysISO, addMonthsISO } from "./utils";
    ========================================================================= */
 const mapAccount = (r) => ({ id: r.id, name: r.name, type: r.type, initialBalance: Number(r.initial_balance), status: r.status, currency: r.currency || null, createdAt: r.created_at?.slice(0, 10) });
 const mapCategory = (r) => ({ id: r.id, name: r.name, type: r.type, icon: r.icon, core: r.core });
-const mapTransaction = (r) => ({ id: r.id, type: r.type, amount: Number(r.amount), categoryId: r.category_id, accountId: r.account_id, toAccountId: r.to_account_id, date: r.date, notes: r.notes || "", originalAmount: r.original_amount != null ? Number(r.original_amount) : null, originalCurrency: r.original_currency || null, exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null, createdAt: r.created_at });
+const mapTransaction = (r) => ({ id: r.id, type: r.type, amount: Number(r.amount), categoryId: r.category_id, accountId: r.account_id, toAccountId: r.to_account_id, date: r.date, notes: r.notes || "", originalAmount: r.original_amount != null ? Number(r.original_amount) : null, originalCurrency: r.original_currency || null, exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null, toAmount: r.to_amount != null ? Number(r.to_amount) : null, createdAt: r.created_at });
 const mapRecurring = (r) => ({ id: r.id, name: r.name, commitmentType: r.commitment_type, amount: Number(r.amount), frequency: r.frequency, startDate: r.start_date, endDate: r.end_date, categoryId: r.category_id, accountId: r.account_id, active: r.active, postedDates: r.posted_dates || [] });
 const mapInstallment = (r) => ({ id: r.id, name: r.name, totalAmount: Number(r.total_amount), monthlyPayment: Number(r.monthly_payment), numberOfPayments: r.number_of_payments, startDate: r.start_date, categoryId: r.category_id, accountId: r.account_id, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
 const mapDebt = (r) => ({ id: r.id, direction: r.direction, person: r.person, amount: Number(r.amount), date: r.date, dueDate: r.due_date, notes: r.notes || "", status: r.status, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
@@ -114,6 +114,7 @@ export async function createTransaction(userId, tx) {
     user_id: userId, type: tx.type, amount: tx.amount, category_id: tx.categoryId, account_id: tx.accountId,
     to_account_id: tx.toAccountId, date: tx.date, notes: tx.notes || "",
     original_amount: tx.originalAmount ?? null, original_currency: tx.originalCurrency ?? null, exchange_rate: tx.exchangeRate ?? null,
+    to_amount: tx.toAmount ?? null,
   }).select().single();
   return mapTransaction(must(res, "Creating transaction"));
 }
@@ -122,6 +123,7 @@ export async function updateTransaction(userId, tx) {
     type: tx.type, amount: tx.amount, category_id: tx.categoryId, account_id: tx.accountId,
     to_account_id: tx.toAccountId, date: tx.date, notes: tx.notes || "",
     original_amount: tx.originalAmount ?? null, original_currency: tx.originalCurrency ?? null, exchange_rate: tx.exchangeRate ?? null,
+    to_amount: tx.toAmount ?? null,
   }).eq("id", tx.id).eq("user_id", userId).select().single();
   return mapTransaction(must(res, "Updating transaction"));
 }
