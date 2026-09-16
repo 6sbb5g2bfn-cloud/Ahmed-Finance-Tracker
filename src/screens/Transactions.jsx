@@ -21,11 +21,22 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
 
   const account = state.accounts.find((a) => a.id === accountId);
   const accountCurrency = account?.currency || state.meta.currency;
+  const toAccount = state.accounts.find((a) => a.id === toAccountId);
+  const toAccountCurrency = toAccount?.currency || state.meta.currency;
+
   const [txCurrency, setTxCurrency] = useState(initial?.originalCurrency || accountCurrency);
   const [rate, setRate] = useState(initial?.exchangeRate != null ? String(initial.exchangeRate) : "");
   const [rateLoading, setRateLoading] = useState(false);
   const [rateError, setRateError] = useState(null);
-  const isForeign = txCurrency !== accountCurrency;
+
+  // Two distinct cases need a rate, never both at once:
+  // - expense/income entered in a different currency than the account itself
+  // - a transfer between two accounts that are each in a different currency
+  const isForeignEntry = type !== "transfer" && txCurrency !== accountCurrency;
+  const isCrossCurrencyTransfer = type === "transfer" && !!toAccountId && accountCurrency !== toAccountCurrency;
+  const needsRate = isForeignEntry || isCrossCurrencyTransfer;
+  const rateFrom = type === "transfer" ? accountCurrency : txCurrency;
+  const rateTo = type === "transfer" ? toAccountCurrency : accountCurrency;
 
   // When switching to a different account, the "account's currency" default
   // no longer applies automatically once the user has deliberately picked one -
@@ -36,11 +47,11 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
   }, [accountId]);
 
   const fetchLiveRate = async () => {
-    if (!isForeign) return;
+    if (!needsRate) return;
     setRateLoading(true);
     setRateError(null);
     try {
-      const resp = await fetch(`/api/exchange-rate?from=${encodeURIComponent(txCurrency)}&to=${encodeURIComponent(accountCurrency)}`);
+      const resp = await fetch(`/api/exchange-rate?from=${encodeURIComponent(rateFrom)}&to=${encodeURIComponent(rateTo)}`);
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Couldn't load a live rate");
       setRate(String(data.rate));
@@ -51,9 +62,9 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
     }
   };
   useEffect(() => {
-    if (isForeign) fetchLiveRate();
+    if (needsRate) fetchLiveRate();
     // eslint-disable-next-line
-  }, [txCurrency, accountCurrency]);
+  }, [rateFrom, rateTo, needsRate]);
 
   const cats = state.categories.filter((c) => c.type === type || c.type === "both");
   useEffect(() => {
@@ -63,21 +74,22 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
 
   const activeAccounts = state.accounts.filter((a) => a.status === "active");
   const parsedRate = parseFloat(rate);
-  const convertedAmount = isForeign && amount && parsedRate > 0 ? parseFloat(amount) * parsedRate : null;
-  const canSave = amount && parseFloat(amount) > 0 && accountId && (type !== "transfer" || (toAccountId && toAccountId !== accountId)) && (!isForeign || parsedRate > 0);
+  const convertedAmount = needsRate && amount && parsedRate > 0 ? parseFloat(amount) * parsedRate : null;
+  const canSave = amount && parseFloat(amount) > 0 && accountId && (type !== "transfer" || (toAccountId && toAccountId !== accountId)) && (!needsRate || parsedRate > 0);
 
   const submit = () => {
     if (!canSave) return;
     onSave({
       id: initial?.id || uid(),
       type,
-      amount: isForeign ? convertedAmount : parseFloat(amount),
+      amount: isForeignEntry ? convertedAmount : parseFloat(amount),
       categoryId: type === "transfer" ? null : categoryId,
       accountId, toAccountId: type === "transfer" ? toAccountId : null,
       date, notes, createdAt: initial?.createdAt || todayISO(),
-      originalAmount: isForeign ? parseFloat(amount) : null,
-      originalCurrency: isForeign ? txCurrency : null,
-      exchangeRate: isForeign ? parsedRate : null,
+      originalAmount: isForeignEntry ? parseFloat(amount) : null,
+      originalCurrency: isForeignEntry ? txCurrency : null,
+      exchangeRate: needsRate ? parsedRate : null,
+      toAmount: isCrossCurrencyTransfer ? convertedAmount : null,
     });
   };
 
@@ -102,25 +114,28 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
         <div className="flex items-center justify-between">
           <FieldLabel>Amount</FieldLabel>
         </div>
-        <div className="mb-2">
-          <SelectPills
-            options={CURRENCIES.map((c) => ({ id: c, label: c }))}
-            value={txCurrency} onChange={setTxCurrency}
-            getLabel={(o) => o.label}
-          />
-        </div>
+        {type !== "transfer" && (
+          <div className="mb-2">
+            <SelectPills
+              options={CURRENCIES.map((c) => ({ id: c, label: c }))}
+              value={txCurrency} onChange={setTxCurrency}
+              getLabel={(o) => o.label}
+            />
+          </div>
+        )}
         <input
           autoFocus type="number" inputMode="decimal" step="0.01" min="0" placeholder="0.00"
           value={amount} onChange={(e) => setAmount(e.target.value)}
           className="w-full text-3xl bg-transparent outline-none py-1"
           style={{ fontFamily: FONT_DISPLAY, color: t.text, borderBottom: `2px solid ${t.line}`, fontVariantNumeric: "tabular-nums" }}
         />
+        {type === "transfer" && <div className="mt-1 text-[11px]" style={{ color: t.textFaint }}>In {accountCurrency}, {account?.name}'s own currency.</div>}
       </div>
 
-      {isForeign && (
+      {needsRate && (
         <div className="mt-3 rounded-2xl p-4" style={{ background: t.ink }}>
           <div className="flex items-center justify-between">
-            <span className="text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>1 {txCurrency} = ? {accountCurrency}</span>
+            <span className="text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>1 {rateFrom} = ? {rateTo}</span>
             <button onClick={fetchLiveRate} className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>
               <RotateCcw size={11} /> {rateLoading ? "loading…" : "refresh"}
             </button>
@@ -134,7 +149,10 @@ export function TransactionForm({ state, initial, onSave, onDelete, onCancel }) 
           {rateError && <div className="mt-2 text-[11px]" style={{ color: "#E08585" }}>{rateError} — enter it yourself above.</div>}
           {convertedAmount != null && (
             <div className="mt-2.5 text-[13px]" style={{ color: t.bg }}>
-              ≈ {fmtNum(convertedAmount)} {accountCurrency} <span style={{ color: "rgba(246,243,236,0.6)" }}>(recorded against this account)</span>
+              ≈ {fmtNum(convertedAmount)} {rateTo}{" "}
+              <span style={{ color: "rgba(246,243,236,0.6)" }}>
+                {type === "transfer" ? `(received in ${toAccount?.name || "the destination account"})` : "(recorded against this account)"}
+              </span>
             </div>
           )}
         </div>
