@@ -30,14 +30,14 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
   const assetsVal = totalAssetsValue(state);
   const assetsGain = totalAssetsGain(state);
   const netW = bal + assetsVal;
-  const inc = monthIncome(state, key);
-  const exp = monthExpense(state, key);
+  const inc = monthIncome(state, key, fxRates);
+  const exp = monthExpense(state, key, fxRates);
   const commitments = monthFixedCommitmentsTotal(state, key);
   const instTotal = monthInstallmentsTotal(state, key);
   const upcoming = useMemo(() => upcomingPayments(state, 30).slice(0, 5), [state]);
-  const insights = useMemo(() => financialInsights(state), [state]);
+  const insights = useMemo(() => financialInsights(state, fxRates), [state, fxRates]);
 
-  const catSpend = categorySpend(state, key);
+  const catSpend = categorySpend(state, key, fxRates);
   const pieData = Object.entries(catSpend)
     .map(([cid, val]) => ({ name: state.categories.find((c) => c.id === cid)?.name || "Other", value: Math.round(val * 100) / 100 }))
     .sort((a, b) => b.value - a.value)
@@ -46,7 +46,7 @@ export default function Dashboard({ state, onNav, onOpenOccurrence, onRepeat, cu
 
   const trendKeys = last6Months();
   const trendData = trendKeys.map((k) => ({
-    month: monthLabel(k), Income: Math.round(monthIncome(state, k)), Expense: Math.round(monthExpense(state, k)),
+    month: monthLabel(k), Income: Math.round(monthIncome(state, k, fxRates)), Expense: Math.round(monthExpense(state, k, fxRates)),
   }));
 
   const availableEst = bal - upcomingPayments(state, daysBetween(todayISO(), new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth() + 1, 0)).toISOString().slice(0, 10))).reduce((s, r) => s + r.amount, 0);
