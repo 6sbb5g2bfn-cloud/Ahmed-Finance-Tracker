@@ -30,10 +30,10 @@ export function BudgetForm({ state, initial, onSave, onCancel, onDelete, usedCat
   );
 }
 
-export default function BudgetsScreen({ state, onAdd, onEdit }) {
+export default function BudgetsScreen({ state, onAdd, onEdit, fxRates }) {
   const t = useTheme();
   const key = thisMonthKey();
-  const spend = categorySpend(state, key);
+  const spend = categorySpend(state, key, fxRates);
   const rows = state.budgets.map((b) => {
     const spent = spend[b.categoryId] || 0;
     const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0;
