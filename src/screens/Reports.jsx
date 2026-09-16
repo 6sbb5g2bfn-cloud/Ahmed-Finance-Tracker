@@ -13,15 +13,15 @@ export default function ReportsScreen({ state, fxRates }) {
   const t = useTheme();
   const key = thisMonthKey();
   const prevKey = monthKeyOf(addMonthsISO(todayISO(), -1));
-  const inc = monthIncome(state, key), exp = monthExpense(state, key);
-  const prevInc = monthIncome(state, prevKey), prevExp = monthExpense(state, prevKey);
+  const inc = monthIncome(state, key, fxRates), exp = monthExpense(state, key, fxRates);
+  const prevInc = monthIncome(state, prevKey, fxRates), prevExp = monthExpense(state, prevKey, fxRates);
   const net = inc - exp;
 
   const trendKeys = last6Months();
-  const trendData = trendKeys.map((k) => ({ month: monthLabel(k), Income: Math.round(monthIncome(state, k)), Expense: Math.round(monthExpense(state, k)) }));
+  const trendData = trendKeys.map((k) => ({ month: monthLabel(k), Income: Math.round(monthIncome(state, k, fxRates)), Expense: Math.round(monthExpense(state, k, fxRates)) }));
   const avgExpense = trendData.reduce((s, d) => s + d.Expense, 0) / trendData.length;
 
-  const catSpend = categorySpend(state, key);
+  const catSpend = categorySpend(state, key, fxRates);
   const pieData = Object.entries(catSpend).map(([cid, val]) => ({ name: state.categories.find((c) => c.id === cid)?.name || "Other", value: Math.round(val * 100) / 100 })).sort((a, b) => b.value - a.value);
   const palette = chartPalette(t);
   const totalCat = pieData.reduce((s, d) => s + d.value, 0);
