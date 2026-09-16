@@ -19,7 +19,9 @@ export function accountBalance(state, accountId) {
     else if (t.type === "expense" && t.accountId === accountId) bal -= t.amount;
     else if (t.type === "transfer") {
       if (t.accountId === accountId) bal -= t.amount;
-      if (t.toAccountId === accountId) bal += t.amount;
+      // toAmount is set only for cross-currency transfers (the destination-side
+      // converted figure); same-currency transfers fall back to amount, unchanged.
+      if (t.toAccountId === accountId) bal += (t.toAmount != null ? t.toAmount : t.amount);
     }
   }
   return bal;
