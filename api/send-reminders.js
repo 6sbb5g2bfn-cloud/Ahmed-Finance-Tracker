@@ -23,10 +23,9 @@ function generateOccurrences(item, rangeStartISO, rangeEndISO) {
   const end = item.end_date ? new Date(item.end_date + "T00:00:00Z") : null;
   let guard = 0;
   while (cursor <= rangeEnd && guard < 3000) {
-        if (cursor >= rangeStart && (!end || cursor <= end)) dates.push(cursor.toISOString().slice(0, 10));
+    if (cursor >= rangeStart && (!end || cursor <= end)) dates.push(cursor.toISOString().slice(0, 10));
     if (item.frequency === "once") break;
     const nd = new Date(cursor);
-
     switch (item.frequency) {
       case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
       case "weekly": nd.setUTCDate(nd.getUTCDate() + 7); break;
@@ -52,7 +51,6 @@ function nextUnpostedOccurrence(item) {
 }
 
 const RECURRING_THRESHOLD_DAYS = { once: 3, daily: 1, weekly: 1, monthly: 1, quarterly: 3, yearly: 7 };
-
 const INSTALLMENT_THRESHOLD_DAYS = 1;
 const DEBT_THRESHOLD_DAYS = 3;
 
@@ -134,17 +132,22 @@ export default async function handler(req, res) {
       if (!next) continue;
       const threshold = RECURRING_THRESHOLD_DAYS[r.frequency] != null ? RECURRING_THRESHOLD_DAYS[r.frequency] : 3;
       const daysAway = daysBetween(today, next);
-      if (daysAway >= 0 && daysAway <= threshold) {
-        addItem(r.user_id, { type: "recurring", id: r.id, date: next, name: r.name, amount: r.amount });
+      if (daysAway <= threshold) {
+        addItem(r.user_id, { type: "recurring", id: r.id, date: next, name: r.name, amount: r.amount, overdue: daysAway < 0 });
       }
     }
     for (const inst of installmentsRes.data || []) {
-      const paidCount = (inst.payments || []).length;
-      if (paidCount >= inst.number_of_payments) continue;
-      const next = addMonthsISO(inst.start_date, paidCount + 1);
+      const monthlyPayment = Number(inst.monthly_payment);
+      const paidSum = (inst.payments || []).reduce((s, p) => s + Number(p.amount), 0);
+      const periodsCovered = monthlyPayment > 0 ? Math.floor((paidSum + 1e-9) / monthlyPayment) : (inst.payments || []).length;
+      if (periodsCovered >= inst.number_of_payments) continue;
+      const remainingTotal = Number(inst.total_amount) - paidSum;
+      if (remainingTotal <= 0) continue;
+      const next = addMonthsISO(inst.start_date, periodsCovered + 1);
+      const nextAmount = Math.max(0, Math.round((Math.min(Number(inst.total_amount), monthlyPayment * (periodsCovered + 1)) - paidSum) * 100) / 100);
       const daysAway = daysBetween(today, next);
-      if (daysAway >= 0 && daysAway <= INSTALLMENT_THRESHOLD_DAYS) {
-        addItem(inst.user_id, { type: "installment", id: inst.id, date: next, name: inst.name, amount: inst.monthly_payment });
+      if (daysAway <= INSTALLMENT_THRESHOLD_DAYS) {
+        addItem(inst.user_id, { type: "installment", id: inst.id, date: next, name: inst.name, amount: nextAmount, overdue: daysAway < 0 });
       }
     }
     for (const debt of debtsRes.data || []) {
@@ -153,9 +156,9 @@ export default async function handler(req, res) {
       const remaining = Number(debt.amount) - paid;
       if (remaining <= 0) continue;
       const daysAway = daysBetween(today, debt.due_date);
-      if (daysAway >= 0 && daysAway <= DEBT_THRESHOLD_DAYS) {
+      if (daysAway <= DEBT_THRESHOLD_DAYS) {
         const label = (debt.direction === "owe" ? "Pay " : "Collect from ") + debt.person;
-        addItem(debt.user_id, { type: "debt", id: debt.id, date: debt.due_date, name: label, amount: remaining });
+        addItem(debt.user_id, { type: "debt", id: debt.id, date: debt.due_date, name: label, amount: remaining, overdue: daysAway < 0 });
       }
     }
 
@@ -163,12 +166,21 @@ export default async function handler(req, res) {
     if (userIds.length === 0) return res.status(200).json({ emailSent: 0, pushSent: 0, note: "nobody has anything due within their reminder window right now" });
 
     const [logRes, subsRes] = await Promise.all([
-      supabase.from("reminder_log").select("user_id, item_type, item_id, occurrence_date, channel").in("user_id", userIds),
+      supabase.from("reminder_log").select("user_id, item_type, item_id, occurrence_date, channel, sent_at").in("user_id", userIds),
       supabase.from("push_subscriptions").select("user_id, endpoint, p256dh, auth").in("user_id", userIds),
     ]);
     if (logRes.error) throw new Error("Reading reminder_log failed: " + logRes.error.message);
     if (subsRes.error) throw new Error("Reading push_subscriptions failed: " + subsRes.error.message);
-    const sentSet = new Set((logRes.data || []).map((r) => logKey(r.user_id, r.item_type, r.item_id, r.occurrence_date, r.channel)));
+    // Two different dedup rules: an upcoming (not-yet-due) item reminds once,
+    // ever, per occurrence - matched regardless of when it was sent. An overdue
+    // item reminds once per DAY until it's paid - matched only if it was
+    // already sent specifically today, so tomorrow it fires again.
+    const sentEverSet = new Set((logRes.data || []).map((r) => logKey(r.user_id, r.item_type, r.item_id, r.occurrence_date, r.channel)));
+    const sentTodaySet = new Set(
+      (logRes.data || [])
+        .filter((r) => r.sent_at && r.sent_at.slice(0, 10) === today)
+        .map((r) => logKey(r.user_id, r.item_type, r.item_id, r.occurrence_date, r.channel))
+    );
     const subscriptions = subsRes.data || [];
 
     const usersRes = await supabase.auth.admin.listUsers({ perPage: 1000 });
@@ -180,26 +192,36 @@ export default async function handler(req, res) {
     let pushSent = 0;
     const logRows = [];
     const skipped = [];
+    const nowIso = new Date().toISOString();
+
+    const notYetSent = (userId, it, channel) => {
+      const key = logKey(userId, it.type, it.id, it.date, channel);
+      return it.overdue ? !sentTodaySet.has(key) : !sentEverSet.has(key);
+    };
 
     for (const userId of userIds) {
       const allItems = perUser[userId];
 
       if (wantsEmail[userId]) {
-        const items = allItems.filter((it) => !sentSet.has(logKey(userId, it.type, it.id, it.date, "email")));
+        const items = allItems.filter((it) => notYetSent(userId, it, "email"));
         const email = emailById[userId];
         if (items.length > 0 && email) {
           const rows = items
-            .map((it) => "<tr><td style=\"padding:6px 10px;\">" + it.name + "</td><td style=\"padding:6px 10px;\">" + it.date + "</td><td style=\"padding:6px 10px;text-align:right;\">" + Number(it.amount).toLocaleString() + "</td></tr>")
+            .map((it) => "<tr><td style=\"padding:6px 10px;" + (it.overdue ? "color:#B33A3A;font-weight:600;" : "") + "\">" + (it.overdue ? "OVERDUE - " : "") + it.name + "</td><td style=\"padding:6px 10px;\">" + it.date + "</td><td style=\"padding:6px 10px;text-align:right;\">" + Number(it.amount).toLocaleString() + "</td></tr>")
             .join("");
           const html = "<div style=\"font-family:sans-serif;\"><h2>Upcoming payments</h2><table style=\"border-collapse:collapse;width:100%;\">" + rows + "</table><p style=\"color:#666;font-size:12px;\">Sent by your Finance Tracker.</p></div>";
+          const overdueCount = items.filter((it) => it.overdue).length;
+          const subject = overdueCount > 0
+            ? overdueCount + " overdue payment" + (overdueCount > 1 ? "s" : "") + (items.length > overdueCount ? " + " + (items.length - overdueCount) + " upcoming" : "")
+            : items.length + " upcoming payment" + (items.length > 1 ? "s" : "");
           const resp = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: { Authorization: "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({ from: "Finance Tracker <onboarding@resend.dev>", to: email, subject: items.length + " upcoming payment" + (items.length > 1 ? "s" : ""), html }),
+            body: JSON.stringify({ from: "Finance Tracker <onboarding@resend.dev>", to: email, subject, html }),
           });
           if (resp.ok) {
             emailSent++;
-            for (const it of items) logRows.push({ user_id: userId, item_type: it.type, item_id: it.id, occurrence_date: it.date, channel: "email" });
+            for (const it of items) logRows.push({ user_id: userId, item_type: it.type, item_id: it.id, occurrence_date: it.date, channel: "email", sent_at: nowIso });
           } else {
             const bodyText = await resp.text().catch(() => "");
             skipped.push({ userId, channel: "email", reason: "Resend responded " + resp.status + ": " + bodyText.slice(0, 300) });
@@ -208,14 +230,17 @@ export default async function handler(req, res) {
       }
 
       if (wantsPush[userId]) {
-        const items = allItems.filter((it) => !sentSet.has(logKey(userId, it.type, it.id, it.date, "push")));
+        const items = allItems.filter((it) => notYetSent(userId, it, "push"));
         if (items.length > 0) {
-          const title = items.length + " upcoming payment" + (items.length > 1 ? "s" : "");
-          const body = items.map((it) => it.name + " - " + Number(it.amount).toLocaleString()).join(", ");
+          const overdueCount = items.filter((it) => it.overdue).length;
+          const title = overdueCount > 0
+            ? overdueCount + " overdue payment" + (overdueCount > 1 ? "s" : "")
+            : items.length + " upcoming payment" + (items.length > 1 ? "s" : "");
+          const body = items.map((it) => (it.overdue ? "OVERDUE: " : "") + it.name + " - " + Number(it.amount).toLocaleString()).join(", ");
           const ok = await pushToUser(supabase, userId, subscriptions, title, body);
           if (ok) {
             pushSent++;
-            for (const it of items) logRows.push({ user_id: userId, item_type: it.type, item_id: it.id, occurrence_date: it.date, channel: "push" });
+            for (const it of items) logRows.push({ user_id: userId, item_type: it.type, item_id: it.id, occurrence_date: it.date, channel: "push", sent_at: nowIso });
           } else {
             skipped.push({ userId, channel: "push", reason: "no active subscription or all sends failed" });
           }
@@ -224,9 +249,11 @@ export default async function handler(req, res) {
     }
 
     if (logRows.length) {
+      // No ignoreDuplicates here, deliberately - an overdue item's existing log
+      // row must have its sent_at refreshed each day, not be silently skipped.
       const upsertRes = await supabase
         .from("reminder_log")
-        .upsert(logRows, { onConflict: "user_id,item_type,item_id,occurrence_date,channel", ignoreDuplicates: true });
+        .upsert(logRows, { onConflict: "user_id,item_type,item_id,occurrence_date,channel" });
       if (upsertRes.error) throw new Error("Writing reminder_log failed: " + upsertRes.error.message);
     }
 
