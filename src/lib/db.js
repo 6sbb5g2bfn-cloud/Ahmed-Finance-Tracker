@@ -157,7 +157,7 @@ export async function deleteRecurring(userId, id) {
 }
 // Marks one occurrence as posted AND records the real transaction it produced.
 export async function markRecurringPaid(userId, recurring, occurrenceDate, amount, date, accountId) {
-  const nextPosted = [...(recurring.postedDates || []), occurrenceDate];
+  const nextPosted = [...(recurring.postedDates || []), { date: occurrenceDate, amount }];
   const [updated, tx] = await Promise.all([
     supabase.from("recurring_payments").update({ posted_dates: nextPosted }).eq("id", recurring.id).eq("user_id", userId).select().single(),
     supabase.from("transactions").insert({
