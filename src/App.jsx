@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { LIGHT, DARK, FONT_UI } from "./lib/constants";
-import { debtRemaining, goalRequiredMonthly } from "./lib/calculations";
+import { debtRemaining, goalRequiredMonthly, installmentRemaining } from "./lib/calculations";
 import { todayISO } from "./lib/utils";
 import * as db from "./lib/db";
 import { ThemeCtx } from "./context/ThemeContext";
@@ -596,7 +596,7 @@ function FinanceApp({ userId, userEmail }) {
           </Sheet>
 
           <Sheet open={!!payInstTarget} onClose={() => setPayInstTarget(null)} title={payInstTarget ? `Record payment — ${payInstTarget.name}` : ""}>
-            {payInstTarget && <RecordPaymentForm state={appState} defaultAmount={payInstTarget.monthlyPayment} defaultAccountId={payInstTarget.accountId} label="Payment amount" onSave={handlePayInstallment} />}
+            {payInstTarget && <RecordPaymentForm state={appState} defaultAmount={installmentRemaining(payInstTarget).nextAmount} defaultAccountId={payInstTarget.accountId} label="Payment amount" onSave={handlePayInstallment} />}
           </Sheet>
 
           <Sheet open={!!payDebtTarget} onClose={() => setPayDebtTarget(null)} title={payDebtTarget ? `${payDebtTarget.direction === "owe" ? "Pay" : "Collect from"} ${payDebtTarget.person}` : ""}>
