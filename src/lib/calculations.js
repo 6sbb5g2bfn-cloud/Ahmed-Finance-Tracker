@@ -109,18 +109,28 @@ export function monthUpcomingRecurring(state, key) {
 export function installmentRemaining(inst) {
   const paidSum = inst.payments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, Math.round((inst.totalAmount - paidSum) * 100) / 100);
-  const paidCount = inst.payments.length;
-  const remainingCount = Math.max(0, inst.numberOfPayments - paidCount);
-  const nextDate = remainingCount > 0 ? addMonthsISO(inst.startDate, paidCount + 1) : null;
-  return { paidSum, remaining, paidCount, remainingCount, nextDate, complete: remainingCount === 0 || remaining <= 0 };
+  // How many FULL periods the cumulative amount paid actually covers - not the
+  // raw count of payment records, so two partial payments that add up to one
+  // full installment correctly count as one period, and a single partial
+  // payment correctly leaves the current period still open (not skipped).
+  const periodsCovered = inst.monthlyPayment > 0 ? Math.floor((paidSum + 1e-9) / inst.monthlyPayment) : inst.payments.length;
+  const remainingCount = Math.max(0, inst.numberOfPayments - periodsCovered);
+  const complete = remainingCount === 0 || remaining <= 0;
+  const nextDate = !complete ? addMonthsISO(inst.startDate, periodsCovered + 1) : null;
+  // What's actually still owed to finish the upcoming period, after crediting
+  // whatever's already been paid toward it - not just the flat monthly figure.
+  const nextAmount = !complete
+    ? Math.max(0, Math.round((Math.min(inst.totalAmount, inst.monthlyPayment * (periodsCovered + 1)) - paidSum) * 100) / 100)
+    : 0;
+  return { paidSum, remaining, paidCount: inst.payments.length, periodsCovered, remainingCount, nextDate, nextAmount, complete };
 }
 
 export function monthInstallmentsDue(state, key) {
   const rows = [];
   for (const inst of state.installments) {
-    const { nextDate, complete } = installmentRemaining(inst);
+    const { nextDate, nextAmount, complete } = installmentRemaining(inst);
     if (!complete && nextDate && monthKeyOf(nextDate) === key) {
-      rows.push({ kind: "installment", ref: inst, date: nextDate, name: inst.name, amount: inst.monthlyPayment });
+      rows.push({ kind: "installment", ref: inst, date: nextDate, name: inst.name, amount: nextAmount });
     }
   }
   return rows;
@@ -151,8 +161,8 @@ export function upcomingPayments(state, horizonDays = 30) {
     if (d && d <= end) rows.push({ kind: "recurring", ref: r, date: d, name: r.name, amount: r.amount, categoryId: r.categoryId });
   }
   for (const inst of state.installments) {
-    const { nextDate, complete } = installmentRemaining(inst);
-    if (!complete && nextDate && nextDate <= end) rows.push({ kind: "installment", ref: inst, date: nextDate, name: inst.name, amount: inst.monthlyPayment });
+    const { nextDate, nextAmount, complete } = installmentRemaining(inst);
+    if (!complete && nextDate && nextDate <= end) rows.push({ kind: "installment", ref: inst, date: nextDate, name: inst.name, amount: nextAmount });
   }
   for (const d of state.debts) {
     const remaining = debtRemaining(d);
@@ -175,10 +185,11 @@ export function monthFixedCommitmentsTotal(state, key) {
 export function monthInstallmentsTotal(state, key) {
   let sum = 0;
   for (const inst of state.installments) {
-    const hasPaymentThisMonth = inst.payments.some((p) => monthKeyOf(p.date) === key);
-    const { nextDate, complete } = installmentRemaining(inst);
+    const paidThisMonth = inst.payments.filter((p) => monthKeyOf(p.date) === key).reduce((s, p) => s + p.amount, 0);
+    const { nextDate, nextAmount, complete } = installmentRemaining(inst);
     const dueThisMonth = !complete && nextDate && monthKeyOf(nextDate) === key;
-    if (hasPaymentThisMonth || dueThisMonth) sum += inst.monthlyPayment;
+    if (paidThisMonth > 0) sum += paidThisMonth;
+    else if (dueThisMonth) sum += nextAmount;
   }
   return sum;
 }
