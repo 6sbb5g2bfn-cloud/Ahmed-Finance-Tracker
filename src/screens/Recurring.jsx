@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Repeat, Trash2, Check } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { FONT_DISPLAY, FREQUENCIES, COMMITMENT_TYPES } from "../lib/constants";
-import { uid, todayISO, fmtDate, nextUnpostedOccurrence } from "../lib/utils";
+import { uid, todayISO, fmtDate, nextUnpostedOccurrence, nextOccurrenceAmountDue } from "../lib/utils";
 import { Screen, Card, Amount, EmptyState, IconBadge, CategoryIcon, FieldLabel, TextInput, SelectPills, PrimaryButton } from "../components/ui";
 
 export function RecurringForm({ state, initial, onSave, onCancel, onDelete }) {
@@ -62,7 +62,7 @@ export function RecurringForm({ state, initial, onSave, onCancel, onDelete }) {
 
 export default function RecurringScreen({ state, onAdd, onEdit, onMarkPaid }) {
   const t = useTheme();
-  const rows = state.recurringPayments.map((r) => ({ ...r, next: nextUnpostedOccurrence(r), cat: state.categories.find((c) => c.id === r.categoryId) }));
+  const rows = state.recurringPayments.map((r) => ({ ...r, next: nextUnpostedOccurrence(r), nextAmount: nextOccurrenceAmountDue(r), cat: state.categories.find((c) => c.id === r.categoryId) }));
   const active = rows.filter((r) => r.active).sort((a, b) => (a.next || "9999").localeCompare(b.next || "9999"));
   const inactive = rows.filter((r) => !r.active);
 
@@ -92,7 +92,7 @@ export default function RecurringScreen({ state, onAdd, onEdit, onMarkPaid }) {
                       </div>
                     </div>
                   </div>
-                  <Amount value={r.amount} size="sm" />
+                  <Amount value={r.next ? r.nextAmount : r.amount} size="sm" />
                 </div>
                 {r.next && (
                   <button onClick={() => onMarkPaid(r, r.next)} className="mt-3 w-full py-2 rounded-full text-[12px] font-medium flex items-center justify-center gap-1.5"
