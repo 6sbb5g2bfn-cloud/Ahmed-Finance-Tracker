@@ -41,12 +41,27 @@ function generateOccurrences(item, rangeStartISO, rangeEndISO) {
   return dates;
 }
 
+function postedAmountForDate(postedDates, date) {
+  let sum = 0;
+  let fullyCoveredLegacy = false;
+  for (const p of postedDates || []) {
+    if (typeof p === "string") {
+      if (p === date) fullyCoveredLegacy = true;
+    } else if (p && p.date === date) {
+      sum += Number(p.amount) || 0;
+    }
+  }
+  return { sum, fullyCoveredLegacy };
+}
+
 function nextUnpostedOccurrence(item) {
   if (!item.active) return null;
   const horizon = addMonthsISO(todayISO(), 24);
   const occ = generateOccurrences(item, item.start_date, horizon);
-  const posted = new Set(item.posted_dates || []);
-  for (const d of occ) if (!posted.has(d)) return d;
+  for (const d of occ) {
+    const { sum, fullyCoveredLegacy } = postedAmountForDate(item.posted_dates, d);
+    if (!fullyCoveredLegacy && sum < item.amount) return d;
+  }
   return null;
 }
 
@@ -133,7 +148,9 @@ export default async function handler(req, res) {
       const threshold = RECURRING_THRESHOLD_DAYS[r.frequency] != null ? RECURRING_THRESHOLD_DAYS[r.frequency] : 3;
       const daysAway = daysBetween(today, next);
       if (daysAway <= threshold) {
-        addItem(r.user_id, { type: "recurring", id: r.id, date: next, name: r.name, amount: r.amount, overdue: daysAway < 0 });
+        const alreadyPaid = postedAmountForDate(r.posted_dates, next).sum;
+        const amountDue = Math.max(0, Math.round((Number(r.amount) - alreadyPaid) * 100) / 100);
+        addItem(r.user_id, { type: "recurring", id: r.id, date: next, name: r.name, amount: amountDue, overdue: daysAway < 0 });
       }
     }
     for (const inst of installmentsRes.data || []) {
