@@ -1,6 +1,6 @@
 import {
   todayISO, addDaysISO, addMonthsISO, monthKeyOf, thisMonthKey, daysBetween, fmtNum,
-  occurrencesInRange, nextUnpostedOccurrence,
+  occurrencesInRange, nextUnpostedOccurrence, nextOccurrenceAmountDue,
 } from "./utils";
 import { ASSET_TYPES } from "./constants";
 
@@ -99,8 +99,8 @@ export function monthUpcomingRecurring(state, key) {
   const end = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
   const rows = [];
   for (const r of state.recurringPayments) {
-    for (const d of occurrencesInRange(r, start, end)) {
-      rows.push({ kind: "recurring", ref: r, date: d, name: r.name, amount: r.amount, categoryId: r.categoryId });
+    for (const o of occurrencesInRange(r, start, end)) {
+      rows.push({ kind: "recurring", ref: r, date: o.date, name: r.name, amount: o.amountDue, categoryId: r.categoryId });
     }
   }
   return rows;
@@ -158,7 +158,7 @@ export function upcomingPayments(state, horizonDays = 30) {
   const rows = [];
   for (const r of state.recurringPayments) {
     const d = nextUnpostedOccurrence(r);
-    if (d && d <= end) rows.push({ kind: "recurring", ref: r, date: d, name: r.name, amount: r.amount, categoryId: r.categoryId });
+    if (d && d <= end) rows.push({ kind: "recurring", ref: r, date: d, name: r.name, amount: nextOccurrenceAmountDue(r), categoryId: r.categoryId });
   }
   for (const inst of state.installments) {
     const { nextDate, nextAmount, complete } = installmentRemaining(inst);
@@ -175,11 +175,17 @@ export function upcomingPayments(state, horizonDays = 30) {
 }
 
 export function monthFixedCommitmentsTotal(state, key) {
-  return monthUpcomingRecurring(state, key).reduce((s, r) => s + r.amount, 0)
-    + state.recurringPayments.reduce((s, r) => {
-        const posted = (r.postedDates || []).filter((d) => monthKeyOf(d) === key);
-        return s + posted.length * r.amount;
-      }, 0);
+  let paidThisMonth = 0;
+  for (const r of state.recurringPayments) {
+    for (const p of r.postedDates || []) {
+      if (typeof p === "string") {
+        if (monthKeyOf(p) === key) paidThisMonth += r.amount; // legacy entry: full amount, by definition
+      } else if (p && p.date && monthKeyOf(p.date) === key) {
+        paidThisMonth += Number(p.amount) || 0;
+      }
+    }
+  }
+  return monthUpcomingRecurring(state, key).reduce((s, r) => s + r.amount, 0) + paidThisMonth;
 }
 
 export function monthInstallmentsTotal(state, key) {
