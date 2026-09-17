@@ -94,6 +94,7 @@ export function RecordPaymentForm({ state, defaultAmount, defaultAccountId, defa
     <div>
       <FieldLabel>{label || "Amount"} ({state.meta.currency})</FieldLabel>
       <TextInput type="number" inputMode="decimal" step="0.01" value={amount} onChange={setAmount} autoFocus />
+      <div className="mt-1.5 text-[11px]" style={{ color: "#8A9289" }}>Paying a different amount, including partial? Just edit the number above.</div>
       <div className="mt-5"><FieldLabel>Date</FieldLabel><TextInput type="date" value={date} onChange={setDate} /></div>
       <div className="mt-5"><FieldLabel>{accountLabel || "Account"}</FieldLabel>
         <SelectPills options={state.accounts.filter((a) => a.status === "active")} value={accountId} onChange={setAccountId} getLabel={(a) => a.name} /></div>
@@ -158,7 +159,7 @@ export default function InstallmentsDebtsScreen({ state, onAddInstallment, onEdi
         ) : (
           <div className="px-4 mt-4 flex flex-col gap-3">
             {state.installments.map((inst) => {
-              const { remaining, paidCount, nextDate, complete } = installmentRemaining(inst);
+              const { remaining, periodsCovered, nextDate, nextAmount, complete } = installmentRemaining(inst);
               const pct = ((inst.totalAmount - remaining) / inst.totalAmount) * 100;
               return (
                 <Card key={inst.id} className="p-4">
@@ -167,7 +168,7 @@ export default function InstallmentsDebtsScreen({ state, onAddInstallment, onEdi
                       <IconBadge bg={t.bgAlt}><CreditCard size={16} color={t.text} /></IconBadge>
                       <div>
                         <div className="text-[14px] font-medium">{inst.name}</div>
-                        <div className="text-[12px]" style={{ color: t.textSoft }}>{paidCount}/{inst.numberOfPayments} paid</div>
+                        <div className="text-[12px]" style={{ color: t.textSoft }}>{periodsCovered}/{inst.numberOfPayments} paid</div>
                       </div>
                     </div>
                     <div className="text-right">
@@ -178,7 +179,7 @@ export default function InstallmentsDebtsScreen({ state, onAddInstallment, onEdi
                   <div className="mt-3"><ProgressBar pct={pct} color={t.green} /></div>
                   {!complete ? (
                     <div className="flex items-center justify-between mt-2.5">
-                      <span className="text-[12px]" style={{ color: t.textSoft }}>Next: {fmtDate(nextDate)}</span>
+                      <span className="text-[12px]" style={{ color: t.textSoft }}>Next: {fmtDate(nextDate)} · {fmtNum(nextAmount)} due</span>
                       <button onClick={() => onPayInstallment(inst)} className="px-3.5 py-1.5 rounded-full text-[12px] font-medium" style={{ background: t.greenSoft, color: t.green }}>Record payment</button>
                     </div>
                   ) : (
