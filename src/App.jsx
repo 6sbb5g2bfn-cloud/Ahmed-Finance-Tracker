@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "./lib/supabaseClient";
 import { LIGHT, DARK, FONT_UI } from "./lib/constants";
 import { debtRemaining, goalRequiredMonthly, installmentRemaining } from "./lib/calculations";
-import { todayISO } from "./lib/utils";
+import { todayISO, postedAmountForDate } from "./lib/utils";
 import * as db from "./lib/db";
 import { ThemeCtx } from "./context/ThemeContext";
 import { Sheet, Toast } from "./components/ui";
@@ -591,7 +591,7 @@ function FinanceApp({ userId, userEmail }) {
           </Sheet>
 
           <Sheet open={!!payRecurringTarget} onClose={() => setPayRecurringTarget(null)} title={payRecurringTarget ? `Mark "${payRecurringTarget.item.name}" as paid` : ""}>
-            {payRecurringTarget && <RecordPaymentForm state={appState} defaultAmount={payRecurringTarget.item.amount} defaultAccountId={payRecurringTarget.item.accountId}
+            {payRecurringTarget && <RecordPaymentForm state={appState} defaultAmount={Math.max(0, Math.round((payRecurringTarget.item.amount - postedAmountForDate(payRecurringTarget.item.postedDates, payRecurringTarget.occurrenceDate).sum) * 100) / 100)} defaultAccountId={payRecurringTarget.item.accountId}
               defaultDate={payRecurringTarget.occurrenceDate} label="Amount paid" onSave={handleMarkRecurringPaid} />}
           </Sheet>
 
