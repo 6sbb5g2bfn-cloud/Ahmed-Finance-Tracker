@@ -75,8 +75,7 @@ export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
     if (cursor >= rangeStart && (!end || cursor <= end)) {
       dates.push(cursor.toISOString().slice(0, 10));
     }
-        if (item.frequency === "once") break;
-
+    if (item.frequency === "once") break;
     const nd = new Date(cursor);
     switch (item.frequency) {
       case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
@@ -92,19 +91,53 @@ export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
   return dates;
 }
 
+// Each entry in postedDates is either a bare date string (legacy format, from
+// before partial payments existed - always treated as "fully covered") or a
+// {date, amount} object (current format, tracks how much was actually paid
+// toward that specific occurrence, so partial payments correctly leave the
+// occurrence open rather than silently marking the whole bill as settled).
+export function postedAmountForDate(postedDates, date) {
+  let sum = 0;
+  let fullyCoveredLegacy = false;
+  for (const p of postedDates || []) {
+    if (typeof p === "string") {
+      if (p === date) fullyCoveredLegacy = true;
+    } else if (p && p.date === date) {
+      sum += Number(p.amount) || 0;
+    }
+  }
+  return { sum, fullyCoveredLegacy };
+}
+
 export function nextUnpostedOccurrence(item) {
   if (!item.active) return null;
   const horizon = addMonthsISO(todayISO(), 24);
   const occ = generateOccurrences(item, item.startDate, horizon);
-  const posted = new Set(item.postedDates || []);
-  for (const d of occ) if (!posted.has(d)) return d;
+  for (const d of occ) {
+    const { sum, fullyCoveredLegacy } = postedAmountForDate(item.postedDates, d);
+    if (!fullyCoveredLegacy && sum < item.amount) return d;
+  }
   return null;
+}
+
+// How much is actually still owed for the next occurrence, after crediting
+// any partial payments already made toward it - not just the flat bill amount.
+export function nextOccurrenceAmountDue(item) {
+  const d = nextUnpostedOccurrence(item);
+  if (!d) return 0;
+  const { sum } = postedAmountForDate(item.postedDates, d);
+  return Math.max(0, Math.round((item.amount - sum) * 100) / 100);
 }
 
 /* Sum amount of unposted occurrences of a recurring item that fall within [a,b] */
 export function occurrencesInRange(item, aISO, bISO) {
   if (!item.active) return [];
   const occ = generateOccurrences(item, item.startDate, bISO).filter((d) => d >= aISO);
-  const posted = new Set(item.postedDates || []);
-  return occ.filter((d) => !posted.has(d));
+  return occ
+    .map((d) => {
+      const { sum, fullyCoveredLegacy } = postedAmountForDate(item.postedDates, d);
+      const amountDue = fullyCoveredLegacy ? 0 : Math.max(0, Math.round((item.amount - sum) * 100) / 100);
+      return { date: d, amountDue };
+    })
+    .filter((o) => o.amountDue > 0);
 }
