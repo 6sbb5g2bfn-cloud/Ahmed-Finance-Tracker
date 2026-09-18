@@ -72,7 +72,10 @@ export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
   const end = item.endDate ? parseISO(item.endDate) : null;
   let guard = 0;
   while (cursor <= rangeEnd && guard < 3000) {
-    if (cursor >= rangeStart && (!end || cursor <= end)) {
+    // "Once" items have exactly one occurrence by definition - a stray leftover
+    // end date (e.g. from when this was a recurring bill before switching to
+    // Once) must never suppress that single occurrence.
+    if (cursor >= rangeStart && (item.frequency === "once" || !end || cursor <= end)) {
       dates.push(cursor.toISOString().slice(0, 10));
     }
     if (item.frequency === "once") break;
