@@ -1,98 +1,145 @@
-import {
-  Landmark, Banknote, CreditCard, Wallet, PiggyBank, Coins, Building2, TrendingUp, Gem,
-  Utensils, ShoppingCart, ShoppingBag, Fuel, Car, Coffee, Film, Heart, Zap, Gift,
-  Briefcase, Laptop, CircleDollarSign, Home, Repeat, User, MoreHorizontal, Tag,
-} from "lucide-react";
+// Client-side id for optimistic UI before the Supabase round-trip resolves.
+// Real rows use Postgres-generated uuids; this just needs to be unique
+// enough locally and is only ever used transiently.
+export const uid = () =>
+  (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : "id_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-/* =========================================================================
-   THEME TOKENS — "Ledger" design system.
-   Ink (deep forest-black) + Paper (warm ivory) with three functional
-   accents: green = money in, brick = money out, brass = savings/goals.
-   ========================================================================= */
-export const LIGHT = {
-  bg: "#F6F3EC", bgAlt: "#EFEAE0", card: "#FCFAF5", ink: "#182722",
-  hero: "#182722", heroText: "#F6F3EC", text: "#1C2B25", textSoft: "#5B6961",
-  textFaint: "#8B968E", line: "#DAD4C4", lineStrong: "#C4BCA6",
-  green: "#2C6B49", greenSoft: "#E4EEE6", red: "#A24334", redSoft: "#F3E4DF",
-  gold: "#A87A2E", goldSoft: "#F0E6D2", blue: "#3A5A78", blueSoft: "#E4EAF0",
-  plum: "#75577F", teal: "#3D7A76",
-};
-export const DARK = {
-  bg: "#101B16", bgAlt: "#16221C", card: "#18251F", ink: "#0C1512",
-  hero: "#E9E4D6", heroText: "#152018", text: "#EDE9DD", textSoft: "#A6AFA5",
-  textFaint: "#71796F", line: "#2A362F", lineStrong: "#3A473F",
-  green: "#5FA47D", greenSoft: "#1C2E24", red: "#D68870", redSoft: "#332019",
-  gold: "#D9B571", goldSoft: "#332A16", blue: "#8BA9C4", blueSoft: "#1B2731",
-  plum: "#A98FB3", teal: "#6FADA8",
+// Calendar dates (bill due dates, purchase dates, etc.) are a timezone-independent
+// concept - "Sep 10" should always mean Sep 10, no matter who's viewing it or where.
+// So every date-string helper below is UTC-anchored and stays UTC-consistent through
+// all arithmetic, matching the server-side reminder logic exactly. The one exception
+// is todayISO(), which deliberately reads the *local* calendar day, since "today" is
+// the one place that must reflect where the user actually is right now.
+export const parseISO = (iso) => new Date(iso + "T00:00:00Z");
+
+export const todayISO = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
-export const FONT_DISPLAY = "'Fraunces', Georgia, serif";
-export const FONT_UI = "'IBM Plex Sans', -apple-system, sans-serif";
-
-export const CURRENCIES = ["EGP", "SAR", "USD", "EUR", "GBP", "AED", "KWD"];
-
-
-export const FREQUENCIES = [
-  { id: "once", label: "Once" },
-  { id: "daily", label: "Daily" },
-
-  { id: "weekly", label: "Weekly" },
-  { id: "monthly", label: "Monthly" },
-  { id: "quarterly", label: "Quarterly" },
-  { id: "yearly", label: "Yearly" },
-];
-
-
-export const ACCOUNT_TYPES = [
-  { id: "bank", label: "Bank", icon: Landmark },
-  { id: "cash", label: "Cash", icon: Banknote },
-  { id: "credit", label: "Credit Card", icon: CreditCard },
-  { id: "wallet", label: "Wallet", icon: Wallet },
-  { id: "savings", label: "Savings", icon: PiggyBank },
-];
-
-export const ASSET_TYPES = [
-  { id: "gold", label: "Gold", icon: Coins },
-  { id: "property", label: "Property", icon: Building2 },
-  { id: "stocks", label: "Stocks", icon: TrendingUp },
-  { id: "other", label: "Other", icon: Gem },
-];
-
-export const COMMITMENT_TYPES = [
-  { id: "subscription", label: "Subscription" },
-  { id: "bill", label: "Bill" },
-  { id: "fixed", label: "Fixed commitment" },
-  { id: "other", label: "Other" },
-];
-
-export const ICONS = {
-  Utensils, ShoppingCart, ShoppingBag, Fuel, Car, Coffee, Film, Heart, Zap, Gift, Briefcase, Laptop,
-  PiggyBank, CircleDollarSign, Home, Repeat, User, MoreHorizontal, Tag, Wallet, CreditCard,
+export const fmtDate = (iso, opts) => {
+  if (!iso) return "";
+  const d = parseISO(iso);
+  // Re-anchor to a plain local Date built from the UTC calendar components, so
+  // toLocaleDateString can't shift the displayed day for the viewer's own zone.
+  const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return local.toLocaleDateString("en-US", opts || { month: "short", day: "numeric" });
 };
 
-// Default categories seeded into a brand-new account on first sign-in.
-// (No id here — Postgres assigns a real uuid on insert.)
-export const DEFAULT_CATEGORIES = [
-  { name: "Food", type: "expense", icon: "Utensils", core: true },
-  { name: "Groceries", type: "expense", icon: "ShoppingCart", core: true },
-  { name: "Restaurants", type: "expense", icon: "Utensils", core: true },
-  { name: "Fuel", type: "expense", icon: "Fuel", core: true },
-  { name: "Coffee", type: "expense", icon: "Coffee", core: true },
-  { name: "Transportation", type: "expense", icon: "Car", core: true },
-  { name: "Shopping", type: "expense", icon: "ShoppingBag", core: true },
-  { name: "Bills", type: "expense", icon: "Zap", core: true },
-  { name: "Healthcare", type: "expense", icon: "Heart", core: true },
-  { name: "Entertainment", type: "expense", icon: "Film", core: true },
-  { name: "Personal", type: "expense", icon: "User", core: true },
-  { name: "Housing", type: "expense", icon: "Home", core: true },
-  { name: "Subscriptions", type: "expense", icon: "Repeat", core: true },
-  { name: "Savings", type: "expense", icon: "PiggyBank", core: true },
-  { name: "Debt Payment", type: "expense", icon: "CircleDollarSign", core: true },
-  { name: "Other", type: "expense", icon: "MoreHorizontal", core: true },
-  { name: "Salary", type: "income", icon: "Briefcase", core: true },
-  { name: "Freelance", type: "income", icon: "Laptop", core: true },
-  { name: "Gifts", type: "income", icon: "Gift", core: true },
-  { name: "Other Income", type: "income", icon: "MoreHorizontal", core: true },
-];
+export const fmtDateLong = (iso) => fmtDate(iso, { month: "long", day: "numeric", year: "numeric" });
 
-export const STORAGE_KEY = "finance-app-state-v1"; // unused now, kept only for import-file backward-compat checks
+export const monthKeyOf = (iso) => iso.slice(0, 7);
+export const thisMonthKey = () => monthKeyOf(todayISO());
+
+export const addMonthsISO = (iso, n) => {
+  const d = parseISO(iso);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+export const addDaysISO = (iso, n) => {
+  const d = parseISO(iso);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+export const daysBetween = (aISO, bISO) => Math.round((parseISO(bISO) - parseISO(aISO)) / 86400000);
+
+export const monthLabel = (key) => {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+};
+
+export const fmtNum = (n) =>
+  new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(
+    Math.round(((n || 0) + Number.EPSILON) * 100) / 100
+  );
+
+export const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+
+/* ---- recurring occurrence generator: works for recurring payments,
+   fixed commitments — anything with {startDate, frequency, endDate} ---- */
+export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
+  const dates = [];
+  let cursor = parseISO(item.startDate);
+  const rangeStart = parseISO(rangeStartISO);
+  const rangeEnd = parseISO(rangeEndISO);
+  const end = item.endDate ? parseISO(item.endDate) : null;
+  let guard = 0;
+  while (cursor <= rangeEnd && guard < 3000) {
+    if (cursor >= rangeStart && (!end || cursor <= end)) {
+      dates.push(cursor.toISOString().slice(0, 10));
+    }
+    if (item.frequency === "once") break;
+    const nd = new Date(cursor);
+    switch (item.frequency) {
+      case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
+      case "weekly": nd.setUTCDate(nd.getUTCDate() + 7); break;
+      case "quarterly": nd.setUTCMonth(nd.getUTCMonth() + 3); break;
+      case "every4months": nd.setUTCMonth(nd.getUTCMonth() + 4); break;
+      case "yearly": nd.setUTCFullYear(nd.getUTCFullYear() + 1); break;
+      case "monthly":
+      default: nd.setUTCMonth(nd.getUTCMonth() + 1); break;
+    }
+    cursor = nd;
+    guard++;
+    if (end && cursor > end) break;
+  }
+  return dates;
+}
+
+// Each entry in postedDates is either a bare date string (legacy format, from
+// before partial payments existed - always treated as "fully covered") or a
+// {date, amount} object (current format, tracks how much was actually paid
+// toward that specific occurrence, so partial payments correctly leave the
+// occurrence open rather than silently marking the whole bill as settled).
+export function postedAmountForDate(postedDates, date) {
+  let sum = 0;
+  let fullyCoveredLegacy = false;
+  for (const p of postedDates || []) {
+    if (typeof p === "string") {
+      if (p === date) fullyCoveredLegacy = true;
+    } else if (p && p.date === date) {
+      sum += Number(p.amount) || 0;
+    }
+  }
+  return { sum, fullyCoveredLegacy };
+}
+
+export function nextUnpostedOccurrence(item) {
+  if (!item.active) return null;
+  const horizon = addMonthsISO(todayISO(), 24);
+  const occ = generateOccurrences(item, item.startDate, horizon);
+  for (const d of occ) {
+    const { sum, fullyCoveredLegacy } = postedAmountForDate(item.postedDates, d);
+    if (!fullyCoveredLegacy && sum < item.amount) return d;
+  }
+  return null;
+}
+
+// How much is actually still owed for the next occurrence, after crediting
+// any partial payments already made toward it - not just the flat bill amount.
+export function nextOccurrenceAmountDue(item) {
+  const d = nextUnpostedOccurrence(item);
+  if (!d) return 0;
+  const { sum } = postedAmountForDate(item.postedDates, d);
+  return Math.max(0, Math.round((item.amount - sum) * 100) / 100);
+}
+
+/* Sum amount of unposted occurrences of a recurring item that fall within [a,b] */
+export function occurrencesInRange(item, aISO, bISO) {
+  if (!item.active) return [];
+  const occ = generateOccurrences(item, item.startDate, bISO).filter((d) => d >= aISO);
+  return occ
+    .map((d) => {
+      const { sum, fullyCoveredLegacy } = postedAmountForDate(item.postedDates, d);
+      const amountDue = fullyCoveredLegacy ? 0 : Math.max(0, Math.round((item.amount - sum) * 100) / 100);
+      return { date: d, amountDue };
+    })
+    .filter((o) => o.amountDue > 0);
+}
