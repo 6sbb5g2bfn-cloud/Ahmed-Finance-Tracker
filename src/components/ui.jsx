@@ -20,7 +20,7 @@ export function IconBadge({ children, bg, size = 34 }) {
 export function Screen({ children }) {
   const t = useTheme();
   return (
-    <div className="min-h-full pb-28" style={{ background: t.bg, color: t.text, fontFamily: FONT_UI }}>
+    <div className="min-h-full pb-28" style={{ background: t.bg, color: t.text, fontFamily: FONT_UI, paddingTop: "env(safe-area-inset-top)" }}>
       {children}
     </div>
   );
