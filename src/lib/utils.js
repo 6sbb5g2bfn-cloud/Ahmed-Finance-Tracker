@@ -116,6 +116,14 @@ export function postedAmountForDate(postedDates, date) {
 
 export function nextUnpostedOccurrence(item) {
   if (!item.active) return null;
+  // "Once" items have exactly one possible date - startDate itself - so there's
+  // no horizon search needed at all, and no window to accidentally fall outside
+  // of (which is exactly what happened for a start date set further out than
+  // the 24-month horizon below covers).
+  if (item.frequency === "once") {
+    const { sum, fullyCoveredLegacy } = postedAmountForDate(item.postedDates, item.startDate);
+    return (!fullyCoveredLegacy && sum < item.amount) ? item.startDate : null;
+  }
   const horizon = addMonthsISO(todayISO(), 24);
   const occ = generateOccurrences(item, item.startDate, horizon);
   for (const d of occ) {
