@@ -80,6 +80,8 @@ export function generateOccurrences(item, rangeStartISO, rangeEndISO) {
     switch (item.frequency) {
       case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
       case "weekly": nd.setUTCDate(nd.getUTCDate() + 7); break;
+      case "quarterly": nd.setUTCMonth(nd.getUTCMonth() + 3); break;
+      case "every4months": nd.setUTCMonth(nd.getUTCMonth() + 4); break;
       case "yearly": nd.setUTCFullYear(nd.getUTCFullYear() + 1); break;
       case "monthly":
       default: nd.setUTCMonth(nd.getUTCMonth() + 1); break;
