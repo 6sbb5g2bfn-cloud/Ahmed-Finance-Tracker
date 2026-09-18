@@ -210,6 +210,7 @@ export default async function handler(req, res) {
     let pushSent = 0;
     const logRows = [];
     const skipped = [];
+    const details = [];
     const nowIso = new Date().toISOString();
 
     const notYetSent = (userId, it, channel) => {
@@ -219,11 +220,16 @@ export default async function handler(req, res) {
 
     for (const userId of userIds) {
       const allItems = perUser[userId];
+      const detail = { userId, email: emailById[userId] || null, items: allItems.map((it) => it.name + (it.overdue ? " (overdue)" : "")), emailResult: "not requested", pushResult: "not requested" };
 
       if (wantsEmail[userId]) {
         const items = allItems.filter((it) => notYetSent(userId, it, "email"));
         const email = emailById[userId];
-        if (items.length > 0 && email) {
+        if (items.length === 0) {
+          detail.emailResult = "already sent for this item earlier";
+        } else if (!email) {
+          detail.emailResult = "skipped: no email on file";
+        } else {
           const rows = items
             .map((it) => "<tr><td style=\"padding:6px 10px;" + (it.overdue ? "color:#B33A3A;font-weight:600;" : "") + "\">" + (it.overdue ? "OVERDUE - " : "") + it.name + "</td><td style=\"padding:6px 10px;\">" + it.date + "</td><td style=\"padding:6px 10px;text-align:right;\">" + Number(it.amount).toLocaleString() + "</td></tr>")
             .join("");
@@ -239,17 +245,25 @@ export default async function handler(req, res) {
           });
           if (resp.ok) {
             emailSent++;
+            detail.emailResult = "sent to " + email;
             for (const it of items) logRows.push({ user_id: userId, item_type: it.type, item_id: it.id, occurrence_date: it.date, channel: "email", sent_at: nowIso });
           } else {
             const bodyText = await resp.text().catch(() => "");
-            skipped.push({ userId, channel: "email", reason: "Resend responded " + resp.status + ": " + bodyText.slice(0, 300) });
+            const reason = "Resend responded " + resp.status + ": " + bodyText.slice(0, 300);
+            detail.emailResult = "skipped: " + reason;
+            skipped.push({ userId, channel: "email", reason });
           }
         }
       }
 
       if (wantsPush[userId]) {
         const items = allItems.filter((it) => notYetSent(userId, it, "push"));
-        if (items.length > 0) {
+        const userSubCount = subscriptions.filter((s) => s.user_id === userId).length;
+        if (items.length === 0) {
+          detail.pushResult = "already sent for this item earlier";
+        } else if (userSubCount === 0) {
+          detail.pushResult = "skipped: no active push subscription for this user";
+        } else {
           const overdueCount = items.filter((it) => it.overdue).length;
           const title = overdueCount > 0
             ? overdueCount + " overdue payment" + (overdueCount > 1 ? "s" : "")
@@ -258,12 +272,16 @@ export default async function handler(req, res) {
           const ok = await pushToUser(supabase, userId, subscriptions, title, body);
           if (ok) {
             pushSent++;
+            detail.pushResult = "sent to " + userSubCount + " device(s)";
             for (const it of items) logRows.push({ user_id: userId, item_type: it.type, item_id: it.id, occurrence_date: it.date, channel: "push", sent_at: nowIso });
           } else {
+            detail.pushResult = "skipped: send failed to all devices";
             skipped.push({ userId, channel: "push", reason: "no active subscription or all sends failed" });
           }
         }
       }
+
+      details.push(detail);
     }
 
     if (logRows.length) {
@@ -275,7 +293,7 @@ export default async function handler(req, res) {
       if (upsertRes.error) throw new Error("Writing reminder_log failed: " + upsertRes.error.message);
     }
 
-    return res.status(200).json({ emailSent, pushSent, skipped });
+    return res.status(200).json({ emailSent, pushSent, skipped, details });
   } catch (e) {
     console.error("send-reminders failed:", e);
     return res.status(500).json({ error: e.message || String(e) });
