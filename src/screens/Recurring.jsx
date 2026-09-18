@@ -13,6 +13,8 @@ export function RecurringForm({ state, initial, onSave, onCancel, onDelete }) {
   const [commitmentType, setCommitmentType] = useState(initial?.commitmentType || "subscription");
   const [categoryId, setCategoryId] = useState(initial?.categoryId || state.categories.find((c) => c.type === "expense")?.id);
   const [accountId, setAccountId] = useState(initial?.accountId || state.accounts[0]?.id);
+  const selectedAccount = state.accounts.find((a) => a.id === accountId);
+  const currency = selectedAccount?.currency || state.meta.currency;
   const [startDate, setStartDate] = useState(initial?.startDate || todayISO());
   const [hasEnd, setHasEnd] = useState(!!initial?.endDate);
   const [endDate, setEndDate] = useState(initial?.endDate || "");
@@ -24,7 +26,7 @@ export function RecurringForm({ state, initial, onSave, onCancel, onDelete }) {
     <div>
       <FieldLabel>Name</FieldLabel>
       <TextInput value={name} onChange={setName} placeholder="e.g. Netflix" autoFocus />
-      <div className="mt-5"><FieldLabel>Amount ({state.meta.currency})</FieldLabel>
+      <div className="mt-5"><FieldLabel>Amount ({currency})</FieldLabel>
         <TextInput type="number" inputMode="decimal" step="0.01" value={amount} onChange={setAmount} placeholder="0.00" /></div>
       <div className="mt-5"><FieldLabel>Type</FieldLabel>
         <SelectPills options={COMMITMENT_TYPES} value={commitmentType} onChange={setCommitmentType} getLabel={(o) => o.label} /></div>
