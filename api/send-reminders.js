@@ -57,6 +57,10 @@ function postedAmountForDate(postedDates, date) {
 
 function nextUnpostedOccurrence(item) {
   if (!item.active) return null;
+  if (item.frequency === "once") {
+    const { sum, fullyCoveredLegacy } = postedAmountForDate(item.posted_dates, item.start_date);
+    return (!fullyCoveredLegacy && sum < item.amount) ? item.start_date : null;
+  }
   const horizon = addMonthsISO(todayISO(), 24);
   const occ = generateOccurrences(item, item.start_date, horizon);
   for (const d of occ) {
