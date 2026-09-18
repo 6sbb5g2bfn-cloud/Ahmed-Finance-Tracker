@@ -30,6 +30,7 @@ function generateOccurrences(item, rangeStartISO, rangeEndISO) {
       case "daily": nd.setUTCDate(nd.getUTCDate() + 1); break;
       case "weekly": nd.setUTCDate(nd.getUTCDate() + 7); break;
       case "quarterly": nd.setUTCMonth(nd.getUTCMonth() + 3); break;
+      case "every4months": nd.setUTCMonth(nd.getUTCMonth() + 4); break;
       case "yearly": nd.setUTCFullYear(nd.getUTCFullYear() + 1); break;
       case "monthly":
       default: nd.setUTCMonth(nd.getUTCMonth() + 1); break;
@@ -65,7 +66,7 @@ function nextUnpostedOccurrence(item) {
   return null;
 }
 
-const RECURRING_THRESHOLD_DAYS = { once: 3, daily: 1, weekly: 1, monthly: 1, quarterly: 3, yearly: 7 };
+const RECURRING_THRESHOLD_DAYS = { once: 3, daily: 1, weekly: 1, monthly: 1, quarterly: 3, every4months: 3, yearly: 7 };
 const INSTALLMENT_THRESHOLD_DAYS = 1;
 const DEBT_THRESHOLD_DAYS = 3;
 
