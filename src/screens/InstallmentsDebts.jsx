@@ -14,6 +14,8 @@ export function InstallmentForm({ state, initial, onSave, onCancel, onDelete }) 
   const [monthlyPayment, setMonthlyPayment] = useState(initial ? String(initial.monthlyPayment) : "");
   const [startDate, setStartDate] = useState(initial?.startDate || todayISO());
   const [accountId, setAccountId] = useState(initial?.accountId || state.accounts[0]?.id);
+  const selectedAccount = state.accounts.find((a) => a.id === accountId);
+  const currency = selectedAccount?.currency || state.meta.currency;
   const debtCat = state.categories.find((c) => c.name === "Debt Payment");
 
   const autoMonthly = () => {
@@ -27,12 +29,12 @@ export function InstallmentForm({ state, initial, onSave, onCancel, onDelete }) 
     <div>
       <FieldLabel>Item name</FieldLabel>
       <TextInput value={name} onChange={setName} placeholder="e.g. iPhone 15" autoFocus />
-      <div className="mt-5"><FieldLabel>Total amount ({state.meta.currency})</FieldLabel>
+      <div className="mt-5"><FieldLabel>Total amount ({currency})</FieldLabel>
         <TextInput type="number" inputMode="decimal" step="0.01" value={totalAmount} onChange={(v) => { setTotalAmount(v); }} onBlur={autoMonthly} placeholder="0.00" /></div>
       <div className="mt-5"><FieldLabel>Number of payments</FieldLabel>
         <TextInput type="number" inputMode="numeric" value={numberOfPayments} onChange={setNumberOfPayments} placeholder="12" /></div>
       <div className="mt-2"><button onClick={autoMonthly} className="text-[12px] font-medium" style={{ color: t.blue }}>Auto-calculate monthly payment</button></div>
-      <div className="mt-3"><FieldLabel>Monthly payment ({state.meta.currency})</FieldLabel>
+      <div className="mt-3"><FieldLabel>Monthly payment ({currency})</FieldLabel>
         <TextInput type="number" inputMode="decimal" step="0.01" value={monthlyPayment} onChange={setMonthlyPayment} placeholder="0.00" /></div>
       <div className="mt-5"><FieldLabel>Start date</FieldLabel>
         <TextInput type="date" value={startDate} onChange={setStartDate} /></div>
@@ -89,10 +91,12 @@ export function RecordPaymentForm({ state, defaultAmount, defaultAccountId, defa
   const [amount, setAmount] = useState(defaultAmount ? String(defaultAmount) : "");
   const [date, setDate] = useState(defaultDate || todayISO());
   const [accountId, setAccountId] = useState(defaultAccountId || state.accounts.find((a) => a.status === "active")?.id);
+  const selectedAccount = state.accounts.find((a) => a.id === accountId);
+  const currency = selectedAccount?.currency || state.meta.currency;
   const canSave = parseFloat(amount) > 0 && accountId;
   return (
     <div>
-      <FieldLabel>{label || "Amount"} ({state.meta.currency})</FieldLabel>
+      <FieldLabel>{label || "Amount"} ({currency})</FieldLabel>
       <TextInput type="number" inputMode="decimal" step="0.01" value={amount} onChange={setAmount} autoFocus />
       <div className="mt-1.5 text-[11px]" style={{ color: "#8A9289" }}>Paying a different amount, including partial? Just edit the number above.</div>
       <div className="mt-5"><FieldLabel>Date</FieldLabel><TextInput type="date" value={date} onChange={setDate} /></div>
