@@ -38,13 +38,17 @@ export function RecurringForm({ state, initial, onSave, onCancel, onDelete }) {
         <SelectPills options={state.accounts.filter((a) => a.status === "active")} value={accountId} onChange={setAccountId} getLabel={(a) => a.name} /></div>
       <div className="mt-5"><FieldLabel>Start / first due date</FieldLabel>
         <TextInput type="date" value={startDate} onChange={setStartDate} /></div>
-      <div className="mt-5 flex items-center justify-between">
-        <FieldLabel>Has an end date</FieldLabel>
-        <button onClick={() => setHasEnd(!hasEnd)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: hasEnd ? t.green : t.line }}>
-          <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: hasEnd ? 22 : 2 }} />
-        </button>
-      </div>
-      {hasEnd && <div className="mt-3"><TextInput type="date" value={endDate} onChange={setEndDate} /></div>}
+      {frequency !== "once" && (
+        <>
+          <div className="mt-5 flex items-center justify-between">
+            <FieldLabel>Has an end date</FieldLabel>
+            <button onClick={() => setHasEnd(!hasEnd)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: hasEnd ? t.green : t.line }}>
+              <span className="absolute top-0.5 rounded-full bg-white transition-all" style={{ width: 20, height: 20, left: hasEnd ? 22 : 2 }} />
+            </button>
+          </div>
+          {hasEnd && <div className="mt-3"><TextInput type="date" value={endDate} onChange={setEndDate} /></div>}
+        </>
+      )}
       <div className="mt-5 flex items-center justify-between">
         <FieldLabel>Active</FieldLabel>
         <button onClick={() => setActive(!active)} className="w-11 h-6 rounded-full relative shrink-0" style={{ background: active ? t.green : t.line }}>
@@ -55,7 +59,7 @@ export function RecurringForm({ state, initial, onSave, onCancel, onDelete }) {
         {initial && onDelete && <button onClick={onDelete} className="p-3 rounded-full active:opacity-60" style={{ border: `1px solid ${t.line}` }}><Trash2 size={18} color={t.red} /></button>}
         <PrimaryButton full disabled={!canSave} onClick={() => onSave({
           id: initial?.id || uid(), name: name.trim(), amount: parseFloat(amount), frequency, commitmentType,
-          categoryId, accountId, startDate, endDate: hasEnd ? endDate : null, active, postedDates: initial?.postedDates || [],
+          categoryId, accountId, startDate, endDate: (frequency !== "once" && hasEnd) ? endDate : null, active, postedDates: initial?.postedDates || [],
         })}>{initial ? "Save changes" : "Add recurring payment"}</PrimaryButton>
       </div>
     </div>
