@@ -13,7 +13,7 @@ const mapCategory = (r) => ({ id: r.id, name: r.name, type: r.type, icon: r.icon
 const mapTransaction = (r) => ({ id: r.id, type: r.type, amount: Number(r.amount), categoryId: r.category_id, accountId: r.account_id, toAccountId: r.to_account_id, date: r.date, notes: r.notes || "", originalAmount: r.original_amount != null ? Number(r.original_amount) : null, originalCurrency: r.original_currency || null, exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null, toAmount: r.to_amount != null ? Number(r.to_amount) : null, createdAt: r.created_at });
 const mapRecurring = (r) => ({ id: r.id, name: r.name, commitmentType: r.commitment_type, amount: Number(r.amount), frequency: r.frequency, startDate: r.start_date, endDate: r.end_date, categoryId: r.category_id, accountId: r.account_id, active: r.active, postedDates: r.posted_dates || [] });
 const mapInstallment = (r) => ({ id: r.id, name: r.name, totalAmount: Number(r.total_amount), monthlyPayment: Number(r.monthly_payment), numberOfPayments: r.number_of_payments, startDate: r.start_date, categoryId: r.category_id, accountId: r.account_id, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
-const mapDebt = (r) => ({ id: r.id, direction: r.direction, person: r.person, amount: Number(r.amount), date: r.date, dueDate: r.due_date, notes: r.notes || "", status: r.status, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
+const mapDebt = (r) => ({ id: r.id, direction: r.direction, person: r.person, amount: Number(r.amount), currency: r.currency || null, date: r.date, dueDate: r.due_date, notes: r.notes || "", status: r.status, payments: (r.payments || []).map((p) => ({ ...p, amount: Number(p.amount) })) });
 const mapBudget = (r) => ({ id: r.id, categoryId: r.category_id, amount: Number(r.amount) });
 const mapGoal = (r) => ({ id: r.id, name: r.name, target: Number(r.target), targetDate: r.target_date, accountId: r.account_id, contributions: (r.contributions || []).map((c) => ({ ...c, amount: Number(c.amount) })) });
 const mapAsset = (r) => ({ id: r.id, name: r.name, type: r.type, currentValue: Number(r.current_value), costBasis: Number(r.cost_basis), purchaseDate: r.purchase_date, weightGrams: r.weight_grams != null ? Number(r.weight_grams) : null, karat: r.karat || null, notes: r.notes || "", createdAt: r.created_at?.slice(0, 10) });
@@ -208,14 +208,14 @@ export async function payInstallment(userId, installment, amount, date, accountI
    ========================================================================= */
 export async function createDebt(userId, d) {
   const res = await supabase.from("debts").insert({
-    user_id: userId, direction: d.direction, person: d.person, amount: d.amount, date: d.date,
+    user_id: userId, direction: d.direction, person: d.person, amount: d.amount, currency: d.currency || null, date: d.date,
     due_date: d.dueDate, notes: d.notes || "", status: d.status || "open", payments: d.payments || [],
   }).select().single();
   return mapDebt(must(res, "Creating debt"));
 }
 export async function updateDebt(userId, d) {
   const res = await supabase.from("debts").update({
-    direction: d.direction, person: d.person, amount: d.amount, date: d.date,
+    direction: d.direction, person: d.person, amount: d.amount, currency: d.currency || null, date: d.date,
     due_date: d.dueDate, notes: d.notes || "", status: d.status || "open", payments: d.payments || [],
   }).eq("id", d.id).eq("user_id", userId).select().single();
   return mapDebt(must(res, "Updating debt"));
