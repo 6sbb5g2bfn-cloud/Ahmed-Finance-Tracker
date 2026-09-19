@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Plus, CreditCard, Users, User, Trash2 } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
-import { FONT_DISPLAY } from "../lib/constants";
+import { FONT_DISPLAY, CURRENCIES } from "../lib/constants";
 import { uid, todayISO, fmtDate, fmtNum } from "../lib/utils";
 import { installmentRemaining, debtRemaining } from "../lib/calculations";
 import { Screen, Card, Amount, ProgressBar, EmptyState, IconBadge, FieldLabel, TextInput, SelectPills, PrimaryButton } from "../components/ui";
@@ -56,6 +56,7 @@ export function DebtForm({ state, initial, onSave, onCancel, onDelete }) {
   const [direction, setDirection] = useState(initial?.direction || "owe");
   const [person, setPerson] = useState(initial?.person || "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [currency, setCurrency] = useState(initial?.currency || state.meta.currency);
   const [date, setDate] = useState(initial?.date || todayISO());
   const [hasDue, setHasDue] = useState(!!initial?.dueDate);
   const [dueDate, setDueDate] = useState(initial?.dueDate || "");
@@ -66,7 +67,13 @@ export function DebtForm({ state, initial, onSave, onCancel, onDelete }) {
       <FieldLabel>Direction</FieldLabel>
       <SelectPills value={direction} onChange={setDirection} options={[{ id: "owe", label: "I owe them" }, { id: "owed", label: "They owe me" }]} />
       <div className="mt-5"><FieldLabel>Person</FieldLabel><TextInput value={person} onChange={setPerson} placeholder="e.g. Ahmed" autoFocus /></div>
-      <div className="mt-5"><FieldLabel>Amount ({state.meta.currency})</FieldLabel><TextInput type="number" inputMode="decimal" step="0.01" value={amount} onChange={setAmount} placeholder="0.00" /></div>
+      <div className="mt-5">
+        <FieldLabel>Amount</FieldLabel>
+        <div className="mb-2">
+          <SelectPills options={CURRENCIES.map((c) => ({ id: c, label: c }))} value={currency} onChange={setCurrency} getLabel={(o) => o.label} />
+        </div>
+        <TextInput type="number" inputMode="decimal" step="0.01" value={amount} onChange={setAmount} placeholder="0.00" />
+      </div>
       <div className="mt-5"><FieldLabel>Date</FieldLabel><TextInput type="date" value={date} onChange={setDate} /></div>
       <div className="mt-5 flex items-center justify-between">
         <FieldLabel>Has a due date</FieldLabel>
@@ -79,7 +86,7 @@ export function DebtForm({ state, initial, onSave, onCancel, onDelete }) {
       <div className="mt-6 flex gap-2">
         {initial && onDelete && <button onClick={onDelete} className="p-3 rounded-full active:opacity-60" style={{ border: `1px solid ${t.line}` }}><Trash2 size={18} color={t.red} /></button>}
         <PrimaryButton full disabled={!canSave} onClick={() => onSave({
-          id: initial?.id || uid(), direction, person: person.trim(), amount: parseFloat(amount), date,
+          id: initial?.id || uid(), direction, person: person.trim(), amount: parseFloat(amount), currency, date,
           dueDate: hasDue ? dueDate : null, notes, status: initial?.status || "open", payments: initial?.payments || [],
         })}>{initial ? "Save changes" : "Add debt"}</PrimaryButton>
       </div>
@@ -87,12 +94,17 @@ export function DebtForm({ state, initial, onSave, onCancel, onDelete }) {
   );
 }
 
-export function RecordPaymentForm({ state, defaultAmount, defaultAccountId, defaultDate, label, accountLabel, onSave, onCancel }) {
+export function RecordPaymentForm({ state, defaultAmount, defaultAccountId, defaultDate, label, accountLabel, forceCurrency, onSave, onCancel }) {
   const [amount, setAmount] = useState(defaultAmount ? String(defaultAmount) : "");
   const [date, setDate] = useState(defaultDate || todayISO());
-  const [accountId, setAccountId] = useState(defaultAccountId || state.accounts.find((a) => a.status === "active")?.id);
+  const activeAccounts = state.accounts.filter((a) => a.status === "active");
+  const matchingAccounts = forceCurrency ? activeAccounts.filter((a) => (a.currency || state.meta.currency) === forceCurrency) : activeAccounts;
+  const accountOptions = matchingAccounts.length > 0 ? matchingAccounts : activeAccounts;
+  const [accountId, setAccountId] = useState(
+    (defaultAccountId && accountOptions.some((a) => a.id === defaultAccountId)) ? defaultAccountId : accountOptions[0]?.id
+  );
   const selectedAccount = state.accounts.find((a) => a.id === accountId);
-  const currency = selectedAccount?.currency || state.meta.currency;
+  const currency = forceCurrency || selectedAccount?.currency || state.meta.currency;
   const canSave = parseFloat(amount) > 0 && accountId;
   return (
     <div>
@@ -101,13 +113,17 @@ export function RecordPaymentForm({ state, defaultAmount, defaultAccountId, defa
       <div className="mt-1.5 text-[11px]" style={{ color: "#8A9289" }}>Paying a different amount, including partial? Just edit the number above.</div>
       <div className="mt-5"><FieldLabel>Date</FieldLabel><TextInput type="date" value={date} onChange={setDate} /></div>
       <div className="mt-5"><FieldLabel>{accountLabel || "Account"}</FieldLabel>
-        <SelectPills options={state.accounts.filter((a) => a.status === "active")} value={accountId} onChange={setAccountId} getLabel={(a) => a.name} /></div>
+        <SelectPills options={accountOptions} value={accountId} onChange={setAccountId} getLabel={(a) => a.name} />
+        {forceCurrency && matchingAccounts.length === 0 && (
+          <div className="mt-1.5 text-[11px]" style={{ color: "#8A9289" }}>No {forceCurrency} account yet — picking one below will record this in that account's own currency instead.</div>
+        )}
+      </div>
       <div className="mt-6"><PrimaryButton full disabled={!canSave} onClick={() => onSave(parseFloat(amount), date, accountId)}>Confirm</PrimaryButton></div>
     </div>
   );
 }
 
-function DebtCard({ d, onEdit, onPay }) {
+function DebtCard({ d, mainCurrency, onEdit, onPay }) {
   const t = useTheme();
   const remaining = debtRemaining(d);
   const pct = ((d.amount - remaining) / d.amount) * 100;
@@ -124,7 +140,9 @@ function DebtCard({ d, onEdit, onPay }) {
         </div>
         <div className="text-right">
           <Amount value={remaining} size="sm" tone={settled ? undefined : d.direction === "owed" ? "pos" : "neg"} />
-          <div className="text-[11px]" style={{ color: t.textFaint }}>of {fmtNum(d.amount)}</div>
+          <div className="text-[11px]" style={{ color: t.textFaint }}>
+            of {fmtNum(d.amount)}{d.currency && d.currency !== mainCurrency ? ` ${d.currency}` : ""}
+          </div>
         </div>
       </div>
       <div className="mt-3"><ProgressBar pct={pct} color={d.direction === "owed" ? t.green : t.gold} /></div>
@@ -203,13 +221,13 @@ export default function InstallmentsDebtsScreen({ state, onAddInstallment, onEdi
               {owe.length > 0 && <>
                 <div className="text-[12px] font-medium mb-1.5" style={{ color: t.textSoft }}>Money I owe</div>
                 <div className="flex flex-col gap-3 mb-5">
-                  {owe.map((d) => <DebtCard key={d.id} d={d} onEdit={() => onEditDebt(d)} onPay={() => onPayDebt(d)} />)}
+                  {owe.map((d) => <DebtCard key={d.id} d={d} mainCurrency={state.meta.currency} onEdit={() => onEditDebt(d)} onPay={() => onPayDebt(d)} />)}
                 </div>
               </>}
               {owed.length > 0 && <>
                 <div className="text-[12px] font-medium mb-1.5" style={{ color: t.textSoft }}>Owed to me</div>
                 <div className="flex flex-col gap-3">
-                  {owed.map((d) => <DebtCard key={d.id} d={d} onEdit={() => onEditDebt(d)} onPay={() => onPayDebt(d)} />)}
+                  {owed.map((d) => <DebtCard key={d.id} d={d} mainCurrency={state.meta.currency} onEdit={() => onEditDebt(d)} onPay={() => onPayDebt(d)} />)}
                 </div>
               </>}
             </>
