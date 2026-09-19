@@ -600,7 +600,7 @@ function FinanceApp({ userId, userEmail }) {
           </Sheet>
 
           <Sheet open={!!payDebtTarget} onClose={() => setPayDebtTarget(null)} title={payDebtTarget ? `${payDebtTarget.direction === "owe" ? "Pay" : "Collect from"} ${payDebtTarget.person}` : ""}>
-            {payDebtTarget && <RecordPaymentForm state={appState} defaultAmount={debtRemaining(payDebtTarget)} label="Amount" onSave={handlePayDebt} />}
+            {payDebtTarget && <RecordPaymentForm state={appState} defaultAmount={debtRemaining(payDebtTarget)} forceCurrency={payDebtTarget.currency || appState.meta.currency} label="Amount" onSave={handlePayDebt} />}
           </Sheet>
 
           <Sheet open={!!contributeTarget} onClose={() => setContributeTarget(null)} title={contributeTarget ? `Contribute to ${contributeTarget.name}` : ""}>
