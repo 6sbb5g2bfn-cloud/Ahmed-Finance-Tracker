@@ -46,8 +46,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const toEmail = process.env.BACKUP_EMAIL || (users[0] && users[0].email);
-    if (!toEmail) return res.status(200).json({ sent: false, note: "no destination email available" });
+    const toEmail = process.env.BACKUP_EMAIL;
+    if (!toEmail) return res.status(500).json({ error: "BACKUP_EMAIL environment variable is not set - add it in Vercel before this can send." });
 
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
