@@ -57,7 +57,9 @@ export default async function handler(req, res) {
     webpush.setVapidDetails("mailto:noreply@example.com", process.env.VITE_VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 
     const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const today = todayISO();
+    // Optional ?date=YYYY-MM-DD override, for testing against a real past day -
+    // the actual nightly cron never passes this, so its behavior is unchanged.
+    const today = (req.query && req.query.date) || todayISO();
 
     const settingsRes = await supabase.from("user_settings").select("user_id, currency").eq("push_enabled", true);
     if (settingsRes.error) throw new Error("Reading user_settings failed: " + settingsRes.error.message);
