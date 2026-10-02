@@ -92,6 +92,17 @@ export function categorySpend(state, key, fxRates = {}) {
   return map;
 }
 
+// Same category breakdown as categorySpend, but across every expense ever
+// recorded - no month filter at all.
+export function allTimeCategorySpend(state, fxRates = {}) {
+  const map = {};
+  for (const t of state.transactions) {
+    if (t.type !== "expense") continue;
+    map[t.categoryId] = (map[t.categoryId] || 0) + txAmountConverted(state, t, fxRates);
+  }
+  return map;
+}
+
 /* All active recurring items due within this calendar month, unposted */
 export function monthUpcomingRecurring(state, key) {
   const [y, m] = key.split("-").map(Number);
