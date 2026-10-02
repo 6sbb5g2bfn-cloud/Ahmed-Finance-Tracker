@@ -1,16 +1,18 @@
+import { useState } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { FONT_DISPLAY } from "../lib/constants";
 import { fmtNum, thisMonthKey, monthKeyOf, addMonthsISO, todayISO, monthLabel } from "../lib/utils";
 import {
-  monthIncome, monthExpense, last6Months, categorySpend, chartPalette,
+  monthIncome, monthExpense, last6Months, categorySpend, allTimeCategorySpend, chartPalette,
   totalAssetsValue, totalAssetsCost, totalAssetsGain, assetsByType, totalBalance,
 } from "../lib/calculations";
-import { Screen, SectionTitle, Card, Amount, ProgressBar } from "../components/ui";
+import { Screen, SectionTitle, Card, Amount, ProgressBar, SelectPills } from "../components/ui";
 
 export default function ReportsScreen({ state, fxRates }) {
   const t = useTheme();
+  const [catRange, setCatRange] = useState("month"); // "month" | "all"
   const key = thisMonthKey();
   const prevKey = monthKeyOf(addMonthsISO(todayISO(), -1));
   const inc = monthIncome(state, key, fxRates), exp = monthExpense(state, key, fxRates);
@@ -21,13 +23,16 @@ export default function ReportsScreen({ state, fxRates }) {
   const trendData = trendKeys.map((k) => ({ month: monthLabel(k), Income: Math.round(monthIncome(state, k, fxRates)), Expense: Math.round(monthExpense(state, k, fxRates)) }));
   const avgExpense = trendData.reduce((s, d) => s + d.Expense, 0) / trendData.length;
 
-  const catSpend = categorySpend(state, key, fxRates);
+  // Budgets stay scoped to this month regardless of the chart's own toggle -
+  // "utilization" only makes sense against this month's spending.
+  const monthCatSpend = categorySpend(state, key, fxRates);
+  const catSpend = catRange === "all" ? allTimeCategorySpend(state, fxRates) : monthCatSpend;
   const pieData = Object.entries(catSpend).map(([cid, val]) => ({ name: state.categories.find((c) => c.id === cid)?.name || "Other", value: Math.round(val * 100) / 100 })).sort((a, b) => b.value - a.value);
   const palette = chartPalette(t);
   const totalCat = pieData.reduce((s, d) => s + d.value, 0);
 
   const budgetRows = state.budgets.map((b) => {
-    const spent = catSpend[b.categoryId] || 0;
+    const spent = monthCatSpend[b.categoryId] || 0;
     return { cat: state.categories.find((c) => c.id === b.categoryId), spent, amount: b.amount, pct: b.amount > 0 ? (spent / b.amount) * 100 : 0 };
   });
 
@@ -124,11 +129,19 @@ export default function ReportsScreen({ state, fxRates }) {
         </Card>
       </div>
 
-      <SectionTitle>Category breakdown — this month</SectionTitle>
+      <SectionTitle>Category breakdown</SectionTitle>
+      <div className="px-4 mb-3">
+        <SelectPills
+          value={catRange} onChange={setCatRange}
+          options={[{ id: "month", label: "This month" }, { id: "all", label: "All time" }]}
+        />
+      </div>
       <div className="px-4">
         <Card className="p-4">
           {pieData.length === 0 ? (
-            <div className="text-center py-6 text-[13px]" style={{ color: t.textFaint }}>No expenses recorded this month yet.</div>
+            <div className="text-center py-6 text-[13px]" style={{ color: t.textFaint }}>
+              {catRange === "all" ? "No expenses recorded yet." : "No expenses recorded this month yet."}
+            </div>
           ) : (
             <div className="flex items-center">
               <div style={{ width: 120, height: 120 }}>
