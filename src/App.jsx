@@ -13,7 +13,7 @@ import Auth from "./screens/Auth";
 import Dashboard from "./screens/Dashboard";
 import TransactionsScreen, { TransactionForm } from "./screens/Transactions";
 import AccountsScreen, { AccountForm } from "./screens/Accounts";
-import AssetsScreen, { AssetForm } from "./screens/Assets";
+import AssetsScreen, { AssetForm, SellAssetForm } from "./screens/Assets";
 import BudgetsScreen, { BudgetForm } from "./screens/Budgets";
 import RecurringScreen, { RecurringForm } from "./screens/Recurring";
 import InstallmentsDebtsScreen, { InstallmentForm, DebtForm, RecordPaymentForm } from "./screens/InstallmentsDebts";
@@ -76,6 +76,7 @@ function FinanceApp({ userId, userEmail }) {
   const [payInstTarget, setPayInstTarget] = useState(null);
   const [payDebtTarget, setPayDebtTarget] = useState(null);
   const [contributeTarget, setContributeTarget] = useState(null);
+  const [sellAssetTarget, setSellAssetTarget] = useState(null);
 
   const [toastMsg, setToastMsg] = useState(null);
   const toastTimer = useRef(null);
@@ -229,6 +230,20 @@ function FinanceApp({ userId, userEmail }) {
       removeFrom("assets", id);
       setAssetSheet(null);
       toast("Asset deleted");
+    } catch (e) { errorToast(e); }
+  };
+  const handleSellAsset = async ({ proceeds, fraction, date, accountId, isFullSale }) => {
+    const asset = sellAssetTarget;
+    const fallbackCat = appState.categories.find((c) => c.name === "Other Income");
+    try {
+      const { asset: updated, transaction } = await db.sellAsset(userId, asset, {
+        proceeds, fraction, date, accountId, categoryId: fallbackCat?.id || null, isFullSale,
+      });
+      if (isFullSale) removeFrom("assets", asset.id);
+      else replaceIn("assets", updated);
+      replaceIn("transactions", transaction);
+      setSellAssetTarget(null);
+      toast(isFullSale ? "Asset sold" : "Partial sale recorded");
     } catch (e) { errorToast(e); }
   };
 
@@ -531,7 +546,7 @@ function FinanceApp({ userId, userEmail }) {
             onRepeat={handleRepeat} currency={cur} />}
           {activeTab === "transactions" && <TransactionsScreen state={appState} onEdit={openEditTx} onAdd={openAddTx} />}
           {activeTab === "accounts" && <AccountsScreen state={appState} fxRates={fxRates} onAdd={() => setAccSheet({ mode: "add", data: null })} onEdit={(a) => setAccSheet({ mode: "edit", data: a })} />}
-          {activeTab === "assets" && <AssetsScreen state={appState} onAdd={() => setAssetSheet({ mode: "add", data: null })} onEdit={(a) => setAssetSheet({ mode: "edit", data: a })} />}
+          {activeTab === "assets" && <AssetsScreen state={appState} onAdd={() => setAssetSheet({ mode: "add", data: null })} onEdit={(a) => setAssetSheet({ mode: "edit", data: a })} onSell={(a) => setSellAssetTarget(a)} />}
           {activeTab === "budgets" && <BudgetsScreen state={appState} fxRates={fxRates} onAdd={() => setBudgetSheet({ mode: "add", data: null })} onEdit={(b) => setBudgetSheet({ mode: "edit", data: b })} />}
           {activeTab === "recurring" && <RecurringScreen state={appState} onAdd={() => setRecSheet({ mode: "add", data: null })} onEdit={(r) => setRecSheet({ mode: "edit", data: r })} onMarkPaid={(item, date) => setPayRecurringTarget({ item, occurrenceDate: date })} />}
           {activeTab === "debts" && <InstallmentsDebtsScreen state={appState}
@@ -605,6 +620,10 @@ function FinanceApp({ userId, userEmail }) {
 
           <Sheet open={!!contributeTarget} onClose={() => setContributeTarget(null)} title={contributeTarget ? `Contribute to ${contributeTarget.name}` : ""}>
             {contributeTarget && <RecordPaymentForm state={appState} defaultAmount={Math.round(goalRequiredMonthly(contributeTarget))} accountLabel="From account" label="Contribution amount" onSave={handleContribute} />}
+          </Sheet>
+
+          <Sheet open={!!sellAssetTarget} onClose={() => setSellAssetTarget(null)} title={sellAssetTarget ? `Sell ${sellAssetTarget.name}` : ""}>
+            {sellAssetTarget && <SellAssetForm state={appState} asset={sellAssetTarget} onSave={handleSellAsset} onCancel={() => setSellAssetTarget(null)} />}
           </Sheet>
 
           <Toast message={toastMsg} />
