@@ -312,6 +312,38 @@ export async function deleteAsset(userId, id) {
   must(res, "Deleting asset");
 }
 
+// Records the sale proceeds as a real income transaction, then either removes
+// the asset entirely (a full sale) or shrinks its value/cost basis/weight
+// proportionally to what's left (a partial sale) - so the remaining holding's
+// own future gain/loss still compares against its own true remaining cost.
+export async function sellAsset(userId, asset, { proceeds, fraction, date, accountId, categoryId, isFullSale }) {
+  const txPromise = supabase.from("transactions").insert({
+    user_id: userId, type: "income", amount: proceeds, category_id: categoryId || null, account_id: accountId,
+    to_account_id: null, date, notes: `Sold ${isFullSale ? "" : "part of "}${asset.name}`,
+  }).select().single();
+
+  if (isFullSale) {
+    const [assetRes, txRes] = await Promise.all([
+      supabase.from("assets").delete().eq("id", asset.id).eq("user_id", userId),
+      txPromise,
+    ]);
+    must(assetRes, "Removing sold asset");
+    return { asset: null, transaction: mapTransaction(must(txRes, "Recording sale transaction")) };
+  }
+
+  const remaining = 1 - fraction;
+  const updated = {
+    current_value: Math.round(asset.currentValue * remaining * 100) / 100,
+    cost_basis: Math.round(asset.costBasis * remaining * 100) / 100,
+    weight_grams: asset.weightGrams != null ? Math.round(asset.weightGrams * remaining * 100) / 100 : null,
+  };
+  const [assetRes, txRes] = await Promise.all([
+    supabase.from("assets").update(updated).eq("id", asset.id).eq("user_id", userId).select().single(),
+    txPromise,
+  ]);
+  return { asset: mapAsset(must(assetRes, "Updating asset after partial sale")), transaction: mapTransaction(must(txRes, "Recording sale transaction")) };
+}
+
 /* =========================================================================
    SETTINGS
    ========================================================================= */
