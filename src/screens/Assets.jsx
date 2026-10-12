@@ -160,7 +160,85 @@ export function AssetForm({ state, initial, onSave, onCancel, onDelete }) {
   );
 }
 
-export default function AssetsScreen({ state, onAdd, onEdit }) {
+// Works for any asset type. Gold assets (with a weight) ask how many grams
+// were sold, so the remaining weight/value/cost basis scale down correctly;
+// everything else asks for the percent of the holding sold. Either way, the
+// proceeds you actually received drive the realized gain/loss - not just a
+// proportional share of the current value, since the market may have moved.
+export function SellAssetForm({ state, asset, onSave, onCancel }) {
+  const t = useTheme();
+  const isGold = asset.type === "gold" && asset.weightGrams != null && asset.weightGrams > 0;
+  const [proceeds, setProceeds] = useState("");
+  const [gramsSold, setGramsSold] = useState(isGold ? String(asset.weightGrams) : "");
+  const [pctSold, setPctSold] = useState("100");
+  const [accountId, setAccountId] = useState(state.accounts.find((a) => a.status === "active")?.id);
+  const [date, setDate] = useState(todayISO());
+
+  const fraction = isGold
+    ? Math.min(1, Math.max(0, (parseFloat(gramsSold) || 0) / asset.weightGrams))
+    : Math.min(1, Math.max(0, (parseFloat(pctSold) || 0) / 100));
+  const proceedsNum = parseFloat(proceeds) || 0;
+  const costBasisSold = Math.round(asset.costBasis * fraction * 100) / 100;
+  const realizedGain = Math.round((proceedsNum - costBasisSold) * 100) / 100;
+  const isFullSale = fraction >= 0.9999;
+  const canSave = proceedsNum > 0 && fraction > 0 && accountId;
+
+  return (
+    <div>
+      <div className="text-[13px] mb-4" style={{ color: t.textSoft }}>
+        Selling <span style={{ color: t.text, fontWeight: 500 }}>{asset.name}</span>
+      </div>
+
+      <FieldLabel>Sale proceeds ({state.meta.currency})</FieldLabel>
+      <TextInput type="number" inputMode="decimal" step="0.01" value={proceeds} onChange={setProceeds} placeholder="0.00" autoFocus />
+
+      <div className="mt-5">
+        {isGold ? (
+          <>
+            <FieldLabel>Grams sold (of {fmtNum(asset.weightGrams)}g held)</FieldLabel>
+            <TextInput type="number" inputMode="decimal" step="0.01" value={gramsSold} onChange={setGramsSold} placeholder="0.00" />
+          </>
+        ) : (
+          <>
+            <FieldLabel>Percent of this holding sold</FieldLabel>
+            <TextInput type="number" inputMode="decimal" step="1" value={pctSold} onChange={setPctSold} placeholder="100" />
+          </>
+        )}
+      </div>
+
+      <div className="mt-5">
+        <FieldLabel>Account receiving the money</FieldLabel>
+        <SelectPills options={state.accounts.filter((a) => a.status === "active")} value={accountId} onChange={setAccountId} getLabel={(a) => a.name} />
+      </div>
+
+      <div className="mt-5">
+        <FieldLabel>Date</FieldLabel>
+        <TextInput type="date" value={date} onChange={setDate} />
+      </div>
+
+      {proceedsNum > 0 && fraction > 0 && (
+        <div className="mt-5 rounded-2xl p-4" style={{ background: t.ink }}>
+          <div className="text-[10px]" style={{ color: "rgba(246,243,236,0.7)" }}>Realized gain / loss on this sale</div>
+          <div className="flex items-center gap-1.5 mt-1" style={{ color: realizedGain >= 0 ? "#8FD19E" : "#E08585" }}>
+            {realizedGain >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+            <span style={{ fontFamily: FONT_DISPLAY, fontSize: 18 }}>{realizedGain >= 0 ? "+" : ""}{fmtNum(realizedGain)} {state.meta.currency}</span>
+          </div>
+          <div className="mt-1.5 text-[11px]" style={{ color: "rgba(246,243,236,0.7)" }}>
+            {isFullSale ? "This sells the entire holding — the asset will be removed." : `Keeps the remaining ${isGold ? fmtNum(asset.weightGrams * (1 - fraction)) + "g" : Math.round((1 - fraction) * 100) + "%"} on your Assets list.`}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6">
+        <PrimaryButton full disabled={!canSave} onClick={() => onSave({ proceeds: proceedsNum, fraction, date, accountId, isFullSale })}>
+          Confirm sale
+        </PrimaryButton>
+      </div>
+    </div>
+  );
+}
+
+export default function AssetsScreen({ state, onAdd, onEdit, onSell }) {
   const t = useTheme();
   const assets = state.assets || [];
   const value = totalAssetsValue(state);
@@ -227,18 +305,27 @@ export default function AssetsScreen({ state, onAdd, onEdit }) {
               const Icon = meta.icon;
               const g = (a.currentValue || 0) - (a.costBasis || 0);
               return (
-                <Card key={a.id} className="p-4 flex items-center justify-between" onClick={() => onEdit(a)}>
-                  <div className="flex items-center gap-3">
-                    <IconBadge bg={t.bgAlt} size={40}><Icon size={18} color={t.text} strokeWidth={1.7} /></IconBadge>
-                    <div>
-                      <div className="text-[14px] font-medium">{a.name}</div>
-                      <div className="text-[12px]" style={{ color: t.textSoft }}>{meta.label}</div>
+                <Card key={a.id} className="p-4">
+                  <div className="flex items-center justify-between" onClick={() => onEdit(a)}>
+                    <div className="flex items-center gap-3">
+                      <IconBadge bg={t.bgAlt} size={40}><Icon size={18} color={t.text} strokeWidth={1.7} /></IconBadge>
+                      <div>
+                        <div className="text-[14px] font-medium">{a.name}</div>
+                        <div className="text-[12px]" style={{ color: t.textSoft }}>{meta.label}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Amount value={a.currentValue} size="base" />
+                      <div className="text-[11px] mt-0.5" style={{ color: g >= 0 ? t.green : t.red }}>{g >= 0 ? "+" : ""}{fmtNum(g)}</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <Amount value={a.currentValue} size="base" />
-                    <div className="text-[11px] mt-0.5" style={{ color: g >= 0 ? t.green : t.red }}>{g >= 0 ? "+" : ""}{fmtNum(g)}</div>
-                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onSell(a); }}
+                    className="mt-3 w-full py-2 rounded-full text-[12px] font-medium"
+                    style={{ background: t.bgAlt, color: t.text }}
+                  >
+                    Sell
+                  </button>
                 </Card>
               );
             })}
